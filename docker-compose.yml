@@ -1,0 +1,36 @@
+services:
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: math2latex_user
+      POSTGRES_PASSWORD: math2latex_pass
+      POSTGRES_DB: math2latex
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+    environment:
+      DB_URL: postgresql://math2latex_user:math2latex_pass@db:5432/math2latex
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

@@ -1,0 +1,6 @@
+# fastapi: framework viết API, chọn vì hỗ trợ async tốt (quan trọng khi gọi model OCR nặng)
+fastapi==0.115.0
+
+# uvicorn: server thực sự chạy FastAPI (FastAPI chỉ định nghĩa route, cần uvicorn để "chạy" nó)
+# [standard]: cài kèm các gói phụ trợ (reload tự động khi sửa code, hỗ trợ WebSocket sau này...)
+uvicorn[standard]==0.30.6
