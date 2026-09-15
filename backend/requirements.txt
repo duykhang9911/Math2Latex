@@ -4,6 +4,17 @@ fastapi==0.115.0
 # python-multipart: bắt buộc cho FastAPI xử lý form-data upload file
 python-multipart==0.0.9
 
-# uvicorn: server thực sự chạy FastAPI (FastAPI chỉ định nghĩa route, cần uvicorn để "chạy" nó)
-# [standard]: cài kèm các gói phụ trợ (reload tự động khi sửa code, hỗ trợ WebSocket sau này...)
+# uvicorn: server thực sự chạy FastAPI
 uvicorn[standard]==0.30.6
+
+# sqlalchemy: ORM - cho phép thao tác với database bằng code Python
+# thay vì tự viết câu lệnh SQL thuần tay
+sqlalchemy==2.0.35
+
+# psycopg2-binary: "driver" giúp Python thực sự nói chuyện được với PostgreSQL
+# (SQLAlchemy chỉ là lớp trung gian, vẫn cần driver riêng cho từng loại DB)
+psycopg2-binary==2.9.9
+
+# alembic: công cụ quản lý migration - ghi lại lịch sử thay đổi cấu trúc bảng
+# theo thời gian, để nhiều người/nhiều máy đồng bộ đúng schema database
+alembic==1.13.3
