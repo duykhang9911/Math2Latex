@@ -27,7 +27,8 @@ function App() {
     formData.append('file', selectedFile)
 
     try {
-      const response = await fetch('http://localhost:8000/upload', {
+      // Đổi URL: route giờ nằm trong router documents, có prefix /api/documents
+      const response = await fetch('http://localhost:8000/api/documents/upload', {
         method: 'POST',
         body: formData,
       })
@@ -38,8 +39,9 @@ function App() {
         throw new Error(data.detail || 'Upload thất bại')
       }
 
+      // data giờ có dạng { document_id, status } - đã đổi từ { filename, size, path }
       setFileInfo(data)
-      setStatus('Upload thành công!')
+      setStatus(`Upload thành công! Document ID: ${data.document_id}`)
     } catch (error) {
       setStatus(error.message || 'Có lỗi xảy ra khi upload.')
     } finally {
@@ -75,15 +77,12 @@ function App() {
 
         {fileInfo && (
           <div className="result-box">
-            <h3>Thông tin file</h3>
+            <h3>Kết quả upload</h3>
             <p>
-              <strong>Tên:</strong> {fileInfo.filename}
+              <strong>Document ID:</strong> {fileInfo.document_id}
             </p>
             <p>
-              <strong>Kích thước:</strong> {fileInfo.size} bytes
-            </p>
-            <p>
-              <strong>Đường dẫn:</strong> {fileInfo.path}
+              <strong>Trạng thái:</strong> {fileInfo.status}
             </p>
           </div>
         )}
