@@ -18,3 +18,16 @@ psycopg2-binary==2.9.9
 # alembic: công cụ quản lý migration - ghi lại lịch sử thay đổi cấu trúc bảng
 # theo thời gian, để nhiều người/nhiều máy đồng bộ đúng schema database
 alembic==1.13.3
+
+# Render uploaded PDF pages into images for formula-region detection.
+PyMuPDF>=1.24,<2
+Pillow>=10,<13
+
+# MFD model for formula localization; pix2tex remains the planned recognizer.
+pix2text==1.1.7
+
+# Formula image to LaTeX recognition.
+pix2tex
+
+# Durable background jobs for PDF processing and OCR.
+rq[redis]>=2.3,<3

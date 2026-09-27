@@ -9,7 +9,7 @@ class DocumentUploadResponse(BaseModel):
     Đây chính là "hợp đồng" API đã chốt trong file kế hoạch:
     { document_id, status }
     """
-    id: uuid.UUID
+    document_id: uuid.UUID
     status: str
 
     class Config:

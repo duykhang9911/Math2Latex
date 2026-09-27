@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -18,6 +18,11 @@ class FormulaEntry(Base):
 
     page_number = Column(Integer, nullable=True)
     image_path = Column(String, nullable=True)
+    x_min = Column(Integer, nullable=True)
+    y_min = Column(Integer, nullable=True)
+    x_max = Column(Integer, nullable=True)
+    y_max = Column(Integer, nullable=True)
+    confidence = Column(Float, nullable=True)
 
     # Text thay vì String: không giới hạn độ dài, phù hợp với chuỗi LaTeX
     # có thể rất dài đối với công thức phức tạp
@@ -25,6 +30,6 @@ class FormulaEntry(Base):
     latex_final = Column(Text, nullable=True)
 
     ocr_backend = Column(String, nullable=True)
-    status = Column(String, nullable=False, default="pending")
+    status = Column(String, nullable=False, default="proposed")
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

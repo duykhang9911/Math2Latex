@@ -10,6 +10,22 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U math2latex_user -d math2latex"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   backend:
     build: ./backend
@@ -19,8 +35,30 @@ services:
       - ./backend:/app
     environment:
       DB_URL: postgresql://math2latex_user:math2latex_pass@db:5432/math2latex
+      REDIS_URL: redis://redis:6379/0
     depends_on:
-      - db
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    command: ["rq", "worker", "--url", "redis://redis:6379/0", "math2latex"]
+    gpus: all
+    volumes:
+      - ./backend:/app
+    environment:
+      DB_URL: postgresql://math2latex_user:math2latex_pass@db:5432/math2latex
+      REDIS_URL: redis://redis:6379/0
+      MATH_DETECTOR_DEVICE: cuda
+      MATH_DETECTOR_BACKEND: onnx
+      HF_ENDPOINT: https://huggingface.co
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
   frontend:
     build: ./frontend
@@ -34,3 +72,4 @@ services:
 
 volumes:
   pgdata:
+  redisdata:

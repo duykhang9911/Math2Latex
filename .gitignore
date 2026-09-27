@@ -2,6 +2,7 @@
 __pycache__/
 *.pyc
 .env
+backend/.venv/
 backend/uploads/*
 !backend/uploads/.gitkeep
 
