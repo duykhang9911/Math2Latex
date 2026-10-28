@@ -1,5 +1,6 @@
 import os
 import uuid
+import logging
 from pathlib import Path
 from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
 from fastapi.responses import FileResponse
@@ -7,31 +8,38 @@ from sqlalchemy.orm import Session
 from PIL import Image
 
 from app.core.database import get_db
-from app.models import Document, FormulaEntry
+from app.models import Document, FormulaEntry, Log
 from app.core.queue import enqueue_job
 from app.core.security import get_current_user
 from app.services.pdf_pages import process_pdf_pages
+from app.schemas.document import DocumentUploadResponse
 from app.schemas.formula import FormulaRegionCreate, FormulaRegionUpdate, FormulaSubmit
 from app.services.formula_ocr import process_formula_ocr
 from app.services.formula_regions import save_formula_crop
 from app.models import User
 
-# APIRouter: một "app FastAPI thu nhỏ", cho phép định nghĩa route ở file riêng
-# rồi "gắn" vào app chính trong main.py - giúp main.py không bị phình to
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/documents", tags=["documents"])
 
 UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg"}
+ALLOWED_EXTS = {".pdf"}
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
 
 
-@router.post("/upload")
+def _log_action(db: Session, action: str, ref_id: uuid.UUID = None, detail: dict = None) -> None:
+    log_entry = Log(action=action, ref_id=ref_id, detail=detail)
+    db.add(log_entry)
+    db.commit()
+
+
+@router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),  # Depends(get_db): FastAPI tự gọi get_db() 
-                                     # để lấy 1 session DB cho riêng request này
+    db: Session = Depends(get_db),
 ):
     if not file.filename:
         raise HTTPException(status_code=400, detail="Chưa chọn file")
@@ -41,42 +49,67 @@ async def upload_document(
     if file_ext not in ALLOWED_EXTS:
         raise HTTPException(
             status_code=400,
-            detail=f"Định dạng không hỗ trợ: {file_ext}. Chỉ nhận: {sorted(ALLOWED_EXTS)}",
+            detail=f"Chỉ nhận PDF. Định dạng nhận được: {file_ext}",
+        )
+
+    if file.size and file.size > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File quá lớn. Tối đa {MAX_FILE_SIZE // (1024 * 1024)}MB",
         )
 
     document_id = uuid.uuid4()
     document_dir = UPLOAD_DIR / str(document_id)
     document_dir.mkdir(parents=True, exist_ok=True)
     save_path = document_dir / f"source{file_ext}"
-    content = await file.read()
-    save_path.write_bytes(content)
 
-    initial_status = "processing_pages" if file_ext == ".pdf" else "uploaded"
+    try:
+        bytes_written = 0
+        with open(save_path, "wb") as f:
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                bytes_written += len(chunk)
+                if bytes_written > MAX_FILE_SIZE:
+                    raise HTTPException(status_code=413, detail=f"File quá lớn. Tối đa {MAX_FILE_SIZE // (1024 * 1024)}MB")
+                f.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        save_path.unlink(missing_ok=True)
+        document_dir.rmdir()
+        logger.error(f"Error writing file: {e}")
+        raise HTTPException(status_code=500, detail="Lỗi lưu file")
+
     new_document = Document(
         id=document_id,
         filename=safe_filename,
-        status=initial_status,
+        status="processing_pages",
         uploaded_by=current_user.id,
     )
     try:
         db.add(new_document)
         db.commit()
         db.refresh(new_document)
-    except Exception:
+        _log_action(db, "upload", document_id, {"filename": safe_filename, "size_bytes": bytes_written})
+    except Exception as e:
         db.rollback()
         save_path.unlink(missing_ok=True)
         document_dir.rmdir()
-        raise
+        logger.error(f"Error creating document record: {e}")
+        raise HTTPException(status_code=500, detail="Lỗi lưu thông tin tài liệu")
 
-    if file_ext == ".pdf":
-        try:
-            enqueue_job(process_pdf_pages, document_id, save_path)
-        except Exception as error:
-            db.query(Document).filter(Document.id == document_id).update({"status": "processing_failed"})
-            db.commit()
-            raise HTTPException(status_code=503, detail="Không thể đưa PDF vào hàng xử lý") from error
+    try:
+        enqueue_job(process_pdf_pages, document_id, save_path)
+    except Exception as error:
+        db.query(Document).filter(Document.id == document_id).update({"status": "processing_failed"})
+        db.commit()
+        _log_action(db, "upload_job_failed", document_id, {"error": str(error)})
+        logger.error(f"Error queueing PDF processing: {error}")
+        raise HTTPException(status_code=503, detail="Không thể đưa PDF vào hàng xử lý") from error
 
-    return {"document_id": new_document.id, "status": new_document.status}
+    return new_document
 
 
 @router.get("/{document_id}/pages")
@@ -157,11 +190,14 @@ def recognize_formula_regions(
     db.commit()
     try:
         enqueue_job(process_formula_ocr, document_id)
+        _log_action(db, "recognize_queued", document_id, {"formula_count": len(formulas)})
     except Exception as error:
         for formula in formulas:
             formula.status = "proposed"
         document.status = "formula_proposals_ready"
         db.commit()
+        _log_action(db, "recognize_job_failed", document_id, {"error": str(error)})
+        logger.error(f"Error queueing OCR: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa OCR vào hàng xử lý") from error
     return {"document_id": document_id, "status": document.status, "queued_count": len(formulas)}
 
@@ -197,11 +233,14 @@ def retry_failed_formula_ocr(
     db.commit()
     try:
         enqueue_job(process_formula_ocr, document_id)
+        _log_action(db, "retry_queued", document_id, {"formula_count": len(failed_formulas)})
     except Exception as error:
         for formula in failed_formulas:
             formula.status = "ocr_failed"
         document.status = "ocr_completed_with_errors"
         db.commit()
+        _log_action(db, "retry_job_failed", document_id, {"error": str(error)})
+        logger.error(f"Error queueing retry: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa OCR vào hàng xử lý") from error
     return {
         "document_id": document_id,
@@ -350,6 +389,7 @@ def submit_formula(
     formula.status = "submitted"
     db.commit()
     db.refresh(formula)
+    _log_action(db, "submit", formula_id, {"document_id": str(document_id)})
     return {
         "formula_id": formula.id,
         "latex_raw": formula.latex_raw,
