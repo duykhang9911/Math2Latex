@@ -4,8 +4,12 @@ import './App.css'
 
 MathfieldElement.fontsDirectory = '/mathlive-fonts/'
 
-const API = 'http://localhost:8000/api/documents'
+const API_ORIGIN = `${window.location.protocol}//${window.location.hostname}:8000`
+const API = `${API_ORIGIN}/api/documents`
+const AUTH_API = `${API_ORIGIN}/api/auth`
 const PROCESSING_STATES = new Set(['processing_pages', 'detecting_formulas', 'ocr_processing'])
+
+const apiFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'include' })
 
 const STATUS_LABELS = {
   processing_pages: 'Đang tách trang',
@@ -19,6 +23,11 @@ const STATUS_LABELS = {
 }
 
 function App() {
+  const [currentUser, setCurrentUser] = useState(null)
+  const [checkingSession, setCheckingSession] = useState(true)
+  const [authMode, setAuthMode] = useState('login')
+  const [authUsername, setAuthUsername] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
   const [selectedFile, setSelectedFile] = useState(null)
   const [documentInfo, setDocumentInfo] = useState(null)
   const [pages, setPages] = useState([])
@@ -31,10 +40,19 @@ function App() {
   const [regionDrafts, setRegionDrafts] = useState({})
   const [regionDrag, setRegionDrag] = useState(null)
 
+  useEffect(() => {
+    apiFetch(`${AUTH_API}/me`)
+      .then(async (response) => {
+        if (response.ok) setCurrentUser(await response.json())
+      })
+      .catch(() => {})
+      .finally(() => setCheckingSession(false))
+  }, [])
+
   const refreshDocument = async (documentId) => {
     const [pagesResponse, formulasResponse] = await Promise.all([
-      fetch(`${API}/${documentId}/pages`),
-      fetch(`${API}/${documentId}/formulas`),
+      apiFetch(`${API}/${documentId}/pages`),
+      apiFetch(`${API}/${documentId}/formulas`),
     ])
     const pagesData = await pagesResponse.json()
     const formulasData = await formulasResponse.json()
@@ -63,6 +81,38 @@ function App() {
     return () => window.clearInterval(timer)
   }, [documentInfo?.document_id, documentInfo?.status])
 
+  const handleAuth = async (event) => {
+    event.preventDefault()
+    setBusy(true)
+    setMessage('')
+    try {
+      const response = await apiFetch(`${AUTH_API}/${authMode === 'login' ? 'login' : 'register'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: authUsername, password: authPassword }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'Không thể xác thực tài khoản')
+      setCurrentUser(data)
+      setAuthPassword('')
+      setMessage(authMode === 'login' ? 'Đăng nhập thành công.' : 'Tạo tài khoản thành công.')
+    } catch (error) {
+      setMessage(error.message || 'Không thể kết nối máy chủ.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleLogout = async () => {
+    await apiFetch(`${AUTH_API}/logout`, { method: 'POST' }).catch(() => {})
+    setCurrentUser(null)
+    setDocumentInfo(null)
+    setPages([])
+    setFormulas([])
+    setSelectedFile(null)
+    setMessage('Bạn đã đăng xuất.')
+  }
+
   const handleUpload = async (event) => {
     event.preventDefault()
     if (!selectedFile) return
@@ -71,7 +121,7 @@ function App() {
     const formData = new FormData()
     formData.append('file', selectedFile)
     try {
-      const response = await fetch(`${API}/upload`, { method: 'POST', body: formData })
+      const response = await apiFetch(`${API}/upload`, { method: 'POST', body: formData })
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Upload thất bại')
       setDocumentInfo(data)
@@ -92,7 +142,7 @@ function App() {
     if (!documentInfo) return
     setBusy(true)
     try {
-      const response = await fetch(`${API}/${documentInfo.document_id}/formulas/recognize`, { method: 'POST' })
+      const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/recognize`, { method: 'POST' })
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Không thể bắt đầu OCR')
       setDocumentInfo((current) => ({ ...current, status: data.status }))
@@ -108,7 +158,7 @@ function App() {
     if (!documentInfo) return
     setBusy(true)
     try {
-      const response = await fetch(`${API}/${documentInfo.document_id}/formulas/retry`, { method: 'POST' })
+      const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/retry`, { method: 'POST' })
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Không thể chạy lại OCR')
       setDocumentInfo((current) => ({ ...current, status: data.status }))
@@ -128,7 +178,7 @@ function App() {
       setMessage('Nhập tọa độ theo dạng x_min,y_min,x_max,y_max.')
       return
     }
-    const response = await fetch(`${API}/${documentInfo.document_id}/formulas/${formula.formula_id}`, {
+    const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/${formula.formula_id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ x_min: xMin, y_min: yMin, x_max: xMax, y_max: yMax }),
@@ -139,7 +189,7 @@ function App() {
   }
 
   const persistRegionBounds = async (formulaId, bounds) => {
-    const response = await fetch(`${API}/${documentInfo.document_id}/formulas/${formulaId}`, {
+    const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/${formulaId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bounds),
@@ -254,7 +304,7 @@ function App() {
   }
 
   const deleteRegion = async (formulaId) => {
-    const response = await fetch(`${API}/${documentInfo.document_id}/formulas/${formulaId}`, { method: 'DELETE' })
+    const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/${formulaId}`, { method: 'DELETE' })
     if (!response.ok) {
       const data = await response.json()
       throw new Error(data.detail || 'Không xóa được vùng')
@@ -271,7 +321,7 @@ function App() {
       setMessage('Nhập tọa độ theo dạng x_min,y_min,x_max,y_max.')
       return
     }
-    const response = await fetch(`${API}/${documentInfo.document_id}/formulas`, {
+    const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ page_number: page.page_number, x_min: xMin, y_min: yMin, x_max: xMax, y_max: yMax }),
@@ -283,7 +333,7 @@ function App() {
   }
 
   const submitFormula = async (formula) => {
-    const response = await fetch(`${API}/${documentInfo.document_id}/formulas/${formula.formula_id}/submit`, {
+    const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/${formula.formula_id}/submit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latex_final: edits[formula.formula_id] ?? '' }),
@@ -306,11 +356,47 @@ function App() {
   const proposalCount = formulas.filter((formula) => formula.status === 'proposed').length
   const failedCount = formulas.filter((formula) => formula.status === 'ocr_failed').length
 
+  if (checkingSession) {
+    return <main className="auth-shell"><p className="eyebrow">Math2Latex</p><p className="auth-loading">Đang kiểm tra phiên đăng nhập…</p></main>
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="auth-shell">
+        <section className="auth-panel">
+          <a className="brand" href="#top"><span className="brand-mark">M</span> Math2Latex</a>
+          <p className="eyebrow auth-eyebrow">PDF formula workspace</p>
+          <h1>{authMode === 'login' ? 'Chào mừng trở lại.' : 'Tạo tài khoản.'}</h1>
+          <p className="auth-copy">Đăng nhập để quản lý PDF và các công thức LaTeX của bạn.</p>
+          <form className="auth-form" onSubmit={handleAuth}>
+            <label htmlFor="auth-username">Tên đăng nhập</label>
+            <input id="auth-username" autoComplete="username" minLength={3} maxLength={32} pattern="[A-Za-z0-9._-]+" value={authUsername} onChange={(event) => setAuthUsername(event.target.value)} required />
+            <label htmlFor="auth-password">Mật khẩu</label>
+            <input id="auth-password" type="password" autoComplete={authMode === 'login' ? 'current-password' : 'new-password'} minLength={8} maxLength={128} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} required />
+            <button className="primary-button auth-submit" type="submit" disabled={busy}>
+              {busy ? 'Đang xử lý…' : authMode === 'login' ? 'Đăng nhập' : 'Đăng ký'} <span aria-hidden="true">→</span>
+            </button>
+          </form>
+          {message && <p className="auth-message" role="status">{message}</p>}
+          <p className="auth-switch">
+            {authMode === 'login' ? 'Chưa có tài khoản?' : 'Đã có tài khoản?'}{' '}
+            <button type="button" className="text-button" onClick={() => { setAuthMode(authMode === 'login' ? 'register' : 'login'); setMessage('') }}>
+              {authMode === 'login' ? 'Đăng ký' : 'Đăng nhập'}
+            </button>
+          </p>
+        </section>
+      </main>
+    )
+  }
+
   return (
     <main className="workspace">
       <header className="topbar">
         <a className="brand" href="#top"><span className="brand-mark">M</span> Math2Latex</a>
-        <span className="topbar-note">PDF WORKSPACE <i /></span>
+        <div className="account-actions">
+          <span className="account-name">{currentUser.username}</span>
+          <button type="button" className="logout-button" onClick={handleLogout}>Đăng xuất</button>
+        </div>
       </header>
 
       <section className="intro" id="top">
@@ -366,7 +452,7 @@ function App() {
                           onPointerUp={finishRegionPointer}
                           onPointerCancel={finishRegionPointer}
                         >
-                          <img src={`http://localhost:8000${page.image_url}`} alt={`Trang ${page.page_number}`} />
+                          <img src={`${API_ORIGIN}${page.image_url}`} alt={`Trang ${page.page_number}`} />
                           {pageFormulas.map((formula) => {
                             const bounds = regionDrafts[formula.formula_id] || formula.bounds
                             const canDrag = formula.status === 'proposed' && documentInfo.status === 'formula_proposals_ready'
@@ -474,7 +560,7 @@ function FormulaEditor({ formula, index, selected, value, editable, onSelect, on
         <span className="formula-page">Trang {formula.page_number} · {formula.status}</span>
         {formula.confidence != null && <span className="confidence">{Math.round(formula.confidence * 100)}%</span>}
       </div>
-      <img className="formula-crop" src={`http://localhost:8000${formula.image_url}`} alt={`Công thức trang ${formula.page_number}`} />
+      <img className="formula-crop" src={`${API_ORIGIN}${formula.image_url}`} alt={`Công thức trang ${formula.page_number}`} />
       {canEditRegion && (
         <div className="region-edit-row" onClick={(event) => event.stopPropagation()}>
           <input aria-label="Tọa độ vùng công thức" value={coordinates} onChange={(event) => setCoordinates(event.target.value)} />

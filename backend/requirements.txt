@@ -31,3 +31,7 @@ pix2tex
 
 # Durable background jobs for PDF processing and OCR.
 rq[redis]>=2.3,<3
+
+# Password hashing and signed access tokens.
+argon2-cffi>=23.1,<26
+PyJWT>=2.8,<3

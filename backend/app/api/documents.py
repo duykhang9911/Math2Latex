@@ -9,10 +9,12 @@ from PIL import Image
 from app.core.database import get_db
 from app.models import Document, FormulaEntry
 from app.core.queue import enqueue_job
+from app.core.security import get_current_user
 from app.services.pdf_pages import process_pdf_pages
 from app.schemas.formula import FormulaRegionCreate, FormulaRegionUpdate, FormulaSubmit
 from app.services.formula_ocr import process_formula_ocr
 from app.services.formula_regions import save_formula_crop
+from app.models import User
 
 # APIRouter: một "app FastAPI thu nhỏ", cho phép định nghĩa route ở file riêng
 # rồi "gắn" vào app chính trong main.py - giúp main.py không bị phình to
@@ -27,6 +29,7 @@ ALLOWED_EXTS = {".pdf", ".png", ".jpg", ".jpeg"}
 @router.post("/upload")
 async def upload_document(
     file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),  # Depends(get_db): FastAPI tự gọi get_db() 
                                      # để lấy 1 session DB cho riêng request này
 ):
@@ -53,6 +56,7 @@ async def upload_document(
         id=document_id,
         filename=safe_filename,
         status=initial_status,
+        uploaded_by=current_user.id,
     )
     try:
         db.add(new_document)
@@ -76,10 +80,12 @@ async def upload_document(
 
 
 @router.get("/{document_id}/pages")
-def list_document_pages(document_id: uuid.UUID, db: Session = Depends(get_db)):
-    document = db.get(Document, document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+def list_document_pages(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = _get_owned_document(document_id, current_user, db)
 
     pages_dir = UPLOAD_DIR / str(document_id) / "pages"
     page_files = sorted(pages_dir.glob("page-*.png"))
@@ -107,11 +113,10 @@ def list_document_pages(document_id: uuid.UUID, db: Session = Depends(get_db)):
 def get_document_page(
     document_id: uuid.UUID,
     page_number: int,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    document = db.get(Document, document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+    _get_owned_document(document_id, current_user, db)
     if page_number < 1:
         raise HTTPException(status_code=404, detail="Không tìm thấy trang")
 
@@ -124,11 +129,12 @@ def get_document_page(
 @router.post("/{document_id}/formulas/recognize", status_code=202)
 def recognize_formula_regions(
     document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     document = (
         db.query(Document)
-        .filter(Document.id == document_id)
+        .filter(Document.id == document_id, Document.uploaded_by == current_user.id)
         .with_for_update()
         .first()
     )
@@ -163,11 +169,12 @@ def recognize_formula_regions(
 @router.post("/{document_id}/formulas/retry", status_code=202)
 def retry_failed_formula_ocr(
     document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     document = (
         db.query(Document)
-        .filter(Document.id == document_id)
+        .filter(Document.id == document_id, Document.uploaded_by == current_user.id)
         .with_for_update()
         .first()
     )
@@ -204,10 +211,12 @@ def retry_failed_formula_ocr(
 
 
 @router.get("/{document_id}/formulas")
-def list_formula_regions(document_id: uuid.UUID, db: Session = Depends(get_db)):
-    document = db.get(Document, document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+def list_formula_regions(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = _get_owned_document(document_id, current_user, db)
 
     formulas = (
         db.query(FormulaEntry)
@@ -226,11 +235,10 @@ def list_formula_regions(document_id: uuid.UUID, db: Session = Depends(get_db)):
 def create_formula_region(
     document_id: uuid.UUID,
     region: FormulaRegionCreate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    document = db.get(Document, document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+    document = _get_owned_document(document_id, current_user, db)
     if document.status != "formula_proposals_ready":
         raise HTTPException(status_code=409, detail="Tài liệu chưa sẵn sàng chỉnh vùng")
 
@@ -265,8 +273,10 @@ def update_formula_region(
     document_id: uuid.UUID,
     formula_id: uuid.UUID,
     region: FormulaRegionUpdate,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _get_owned_document(document_id, current_user, db)
     formula = _get_proposed_formula(document_id, formula_id, db)
     page_path = _page_path(document_id, formula.page_number)
     bounds = (region.x_min, region.y_min, region.x_max, region.y_max)
@@ -283,8 +293,10 @@ def update_formula_region(
 def delete_formula_region(
     document_id: uuid.UUID,
     formula_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _get_owned_document(document_id, current_user, db)
     formula = _get_proposed_formula(document_id, formula_id, db)
     Path(formula.image_path).unlink(missing_ok=True)
     db.delete(formula)
@@ -295,8 +307,10 @@ def delete_formula_region(
 def get_formula_image(
     document_id: uuid.UUID,
     formula_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _get_owned_document(document_id, current_user, db)
     formula = (
         db.query(FormulaEntry)
         .filter(
@@ -315,8 +329,10 @@ def submit_formula(
     document_id: uuid.UUID,
     formula_id: uuid.UUID,
     submission: FormulaSubmit,
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
+    _get_owned_document(document_id, current_user, db)
     formula = (
         db.query(FormulaEntry)
         .filter(
@@ -365,6 +381,17 @@ def _formula_region_response(formula: FormulaEntry) -> dict:
 
 def _page_path(document_id: uuid.UUID, page_number: int) -> Path:
     return UPLOAD_DIR / str(document_id) / "pages" / f"page-{page_number:06d}.png"
+
+
+def _get_owned_document(document_id: uuid.UUID, user: User, db: Session) -> Document:
+    document = (
+        db.query(Document)
+        .filter(Document.id == document_id, Document.uploaded_by == user.id)
+        .first()
+    )
+    if document is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+    return document
 
 
 def _validate_bounds(page_path: Path, bounds: tuple[int, int, int, int]) -> None:

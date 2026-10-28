@@ -1,6 +1,6 @@
 # Math2Latex - Tài liệu học và hướng dẫn dự án
 
-Tài liệu này dành cho thành viên mới của nhóm. Đọc theo thứ tự từ mục tiêu, luồng hoạt động, database, cấu trúc file rồi đến cách chạy ứng dụng. Mã nguồn mới nhất là nguồn sự thật khi thông tin trong các ghi chú tuần cũ không còn khớp.
+Tài liệu này dành cho thành viên mới của nhóm. Bắt đầu từ [README.md](README.md) để xem nhanh, hoặc [Docs/README.md](Docs/README.md) để đi theo từng tài liệu chuẩn. Đọc theo thứ tự từ mục tiêu, luồng hoạt động, database, cấu trúc file rồi đến cách chạy ứng dụng. Mã nguồn mới nhất là nguồn sự thật khi thông tin trong các ghi chú tuần cũ không còn khớp.
 
 ---
 
@@ -156,15 +156,29 @@ Compose bật Redis AOF và volume `redisdata`; điều này hỗ trợ giữ d�
 
 ```text
 Math2Latex/
+|-- README.md
+|-- AGENTS.md
 |-- doc.md
-|-- BaoCaoTienDoLan1_Math2Latex.docx
 |-- docker-compose.yml
 |-- package.json
 |-- package-lock.json
 |-- .gitignore
-|-- tuan1.md
-|-- tuan2.md
-|-- week2-process.md
+|-- Docs/
+|   |-- README.md
+|   |-- SRS.md
+|   |-- ARCHITECTURE.md
+|   |-- MODULE_OWNERSHIP.md
+|   |-- PROJECT_STRUCTURE_GUIDE.md
+|   |-- DATABASE.md
+|   |-- SETUP.md
+|   |-- DEVELOPMENT_PLAYBOOK.md
+|   |-- CONTRIBUTING.md
+|   |-- GIT_WORKFLOW.md
+|   |-- TEAM.md
+|   |-- PHAN_CONG_CONG_VIEC.md
+|   `-- modules/
+|       |-- BACKEND_GUIDE.md
+|       `-- FRONTEND_GUIDE.md
 |-- backend/
 |   |-- Dockerfile
 |   |-- .dockerignore
@@ -177,6 +191,7 @@ Math2Latex/
 |   |   `-- versions/
 |   |       |-- 1c603257d451_create_initial_tables.py
 |   |       `-- 7fd904b9f5b1_add_formula_region_bounds.py
+|   |-- tests/README.md             # vị trí test đề xuất; suite chưa thiết lập
 |   |-- app/
 |   |   |-- main.py
 |   |   |-- api/
@@ -217,19 +232,17 @@ Math2Latex/
 |   |-- eslint.config.js
 |   |-- README.md
 |   |-- scripts/copy-mathlive-fonts.mjs
+|   |-- tests/README.md             # vị trí browser tests đề xuất
 |   |-- public/
 |   |   |-- favicon.svg
 |   |   |-- icons.svg
-|   |   `-- mathlive-fonts/<các font KaTeX .woff2>
+|   |   `-- mathlive-fonts/<generated KaTeX .woff2; gitignored>
 |   `-- src/
 |       |-- main.jsx
 |       |-- App.jsx
 |       |-- App.css
 |       |-- index.css
 |       `-- assets/
-|           |-- hero.png
-|           |-- react.svg
-|           `-- vite.svg
 ```
 
 `backend/uploads/<document_uuid>/` là dữ liệu sinh ra khi chạy ứng dụng; mỗi máy có thể có nội dung khác nhau. Thư mục này được loại khỏi Git để không đưa PDF/crop người dùng lên repository. Cây trên gom các font KaTeX thành một nhóm cho dễ đọc; thư mục hiện chứa các font `.woff2` được MathLive dùng để hiển thị toán.
@@ -239,9 +252,11 @@ Math2Latex/
 | File | Chức năng |
 |---|---|
 | `doc.md` | Tài liệu hướng dẫn và giải thích dự án hiện tại. |
-| `BaoCaoTienDoLan1_Math2Latex.docx` | Báo cáo tiến độ lần 1 đã tạo cho buổi báo cáo. |
+| `README.md` | Trang giới thiệu và chạy nhanh. |
+| `AGENTS.md` | Quy tắc làm việc cho AI/cộng tác viên. |
+| `Docs/` | SRS, kiến trúc, setup, ownership, backlog và quy trình nhóm. |
 | `docker-compose.yml` | Khai báo các container PostgreSQL, Redis, backend, worker và frontend; port, volume, biến môi trường và kết nối giữa dịch vụ. |
-| `package.json`, `package-lock.json` | Khai báo và khóa dependencies ở thư mục gốc. Ứng dụng React/Vite chính nằm trong `frontend/`. |
+| `package.json`, `package-lock.json` | Dependencies tồn tại ở root; frontend React/Vite chính nằm trong `frontend/`. Tránh thêm package vào root nếu không cần. |
 | `.gitignore` | Ngăn Git theo dõi upload, virtualenv, node_modules và file sinh ra. |
 
 
@@ -344,7 +359,7 @@ docker compose exec backend alembic upgrade head
 
 Lệnh này tạo/cập nhật bảng. Alembic chỉ chạy khi được gọi; Compose không tự chạy migration mỗi lần khởi động.
 
-### Mở webapp
+### webapp
 
 - Ứng dụng: <http://localhost:5173>
 - Kiểm tra API: <http://localhost:8000/health>
@@ -396,7 +411,7 @@ nvidia-smi
 docker run --rm --gpus all nvidia/cuda:13.0.0-base-ubuntu24.04 nvidia-smi
 ```
 
-Trong Compose, worker dùng `MATH_DETECTOR_DEVICE=cuda`, MFD backend `onnx`, PyTorch của pix2tex tự chọn CUDA khi khả dụng. GPU đã được smoke test trên máy phát triển. ONNX Runtime từng đưa ra cảnh báo plugin EP, nên nếu cần chứng minh toàn bộ phép tính MFD chạy CUDA hãy profile thêm; không dùng kết quả smoke test thay cho benchmark OCR.
+Trong Compose, worker dùng `MATH_DETECTOR_DEVICE=cuda`, MFD backend `onnx`, PyTorch của pix2tex tự chọn CUDA khi khả dụng. Host và container CUDA mẫu đã thấy RTX 3050 Ti, nhưng inference MFD/ONNX trong worker chưa được xác minh hoàn tất; từng có cảnh báo plugin EP. Trước khi ghi nhận GPU pass, chạy inference thật trong worker và kiểm tra log/provider. Không dùng kiểm tra thiết bị thay cho benchmark OCR.
 
 ---
 

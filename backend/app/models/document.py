@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -19,8 +19,7 @@ class Document(Base):
     # nullable=False + default: luôn có giá trị mặc định "uploaded" khi mới tạo
     status = Column(String, nullable=False, default="uploaded")
 
-    # để trống FK tới users ở bước này (bảng users tạo ở dưới) - sẽ nối sau
-    # khi làm chức năng đăng nhập, hiện tại chưa cần bắt buộc
-    uploaded_by = Column(UUID(as_uuid=True), nullable=True)
+    # Nullable để giữ các document cũ chưa gắn tài khoản; document mới được gắn user đăng nhập.
+    uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
