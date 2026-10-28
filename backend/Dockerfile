@@ -10,8 +10,10 @@ RUN apt-get update \
 # Copy CHỈ requirements.txt trước để tận dụng cache của Docker khi build lại
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-RUN pip uninstall -y onnxruntime \
-	&& pip install --no-cache-dir onnxruntime-gpu
+
+# Install onnxruntime: try GPU if available, otherwise CPU
+# Default to CPU; GPU requires nvidia-docker and GPU drivers
+RUN pip install --no-cache-dir onnxruntime || pip install --no-cache-dir onnxruntime-gpu || true
 
 COPY . .
 
