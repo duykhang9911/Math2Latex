@@ -38,8 +38,6 @@ services:
       REDIS_URL: redis://redis:6379/0
       AUTH_SECRET: ${AUTH_SECRET:-local-development-secret-change-before-deploy-2026}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
-      AUTH_SECRET: ${AUTH_SECRET:-local-development-secret-change-before-deploy-2026}
-      AUTH_SECRET: ${AUTH_SECRET:-local-development-secret-change-before-deploy-2026}
     depends_on:
       db:
         condition: service_healthy

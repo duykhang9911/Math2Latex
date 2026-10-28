@@ -35,7 +35,7 @@ docker compose ps
 - API health: http://localhost:8000/health
 - Swagger: http://localhost:8000/docs
 
-Hướng dẫn chi tiết: [Docs/SETUP.md](Docs/SETUP.md). Hướng dẫn học dự án: [doc.md](doc.md).
+Hướng dẫn chi tiết: [Docs/SETUP.md](Docs/SETUP.md). Hướng dẫn học dự án: [Docs/HUONG_DAN_HOC_DU_AN.md](Docs/HUONG_DAN_HOC_DU_AN.md).
 
 ## Bắt đầu
 
