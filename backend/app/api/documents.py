@@ -1,9 +1,12 @@
 import os
+import shutil
 import uuid
 import logging
 from pathlib import Path
-from fastapi import APIRouter, File, UploadFile, Depends, HTTPException
+from urllib.parse import quote
+from fastapi import APIRouter, File, Query, Response, UploadFile, Depends, HTTPException
 from fastapi.responses import FileResponse
+from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from PIL import Image
 
@@ -12,7 +15,7 @@ from app.models import Document, FormulaEntry, Log
 from app.core.queue import enqueue_job
 from app.core.security import get_current_user
 from app.services.pdf_pages import process_pdf_pages
-from app.schemas.document import DocumentUploadResponse
+from app.schemas.document import DocumentListResponse, DocumentSummary, DocumentUploadResponse
 from app.schemas.formula import FormulaRegionCreate, FormulaRegionUpdate, FormulaSubmit
 from app.services.formula_ocr import process_formula_ocr
 from app.services.formula_regions import save_formula_crop
@@ -27,10 +30,19 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTS = {".pdf"}
 MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+MAX_HISTORY_PAGE_SIZE = 100
+# Đang có job worker ghi vào thư mục tài liệu; không cho xóa trong lúc này.
+BUSY_STATUSES = {"processing_pages", "detecting_formulas", "ocr_processing"}
 
 
-def _log_action(db: Session, action: str, ref_id: uuid.UUID = None, detail: dict = None) -> None:
-    log_entry = Log(action=action, ref_id=ref_id, detail=detail)
+def _log_action(
+    db: Session,
+    action: str,
+    ref_id: uuid.UUID = None,
+    detail: dict = None,
+    user_id: uuid.UUID = None,
+) -> None:
+    log_entry = Log(action=action, ref_id=ref_id, detail=detail, user_id=user_id)
     db.add(log_entry)
     db.commit()
 
@@ -87,12 +99,13 @@ async def upload_document(
         filename=safe_filename,
         status="processing_pages",
         uploaded_by=current_user.id,
+        file_size_bytes=bytes_written,
     )
     try:
         db.add(new_document)
         db.commit()
         db.refresh(new_document)
-        _log_action(db, "upload", document_id, {"filename": safe_filename, "size_bytes": bytes_written})
+        _log_action(db, "upload", document_id, {"filename": safe_filename, "size_bytes": bytes_written}, current_user.id)
     except Exception as e:
         db.rollback()
         save_path.unlink(missing_ok=True)
@@ -105,11 +118,142 @@ async def upload_document(
     except Exception as error:
         db.query(Document).filter(Document.id == document_id).update({"status": "processing_failed"})
         db.commit()
-        _log_action(db, "upload_job_failed", document_id, {"error": str(error)})
+        _log_action(db, "upload_job_failed", document_id, {"error": str(error)}, current_user.id)
         logger.error(f"Error queueing PDF processing: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa PDF vào hàng xử lý") from error
 
-    return new_document
+    return {"document_id": new_document.id, "status": new_document.status}
+
+
+@router.get("", response_model=DocumentListResponse)
+def list_documents(
+    limit: int = Query(20, ge=1, le=MAX_HISTORY_PAGE_SIZE),
+    offset: int = Query(0, ge=0),
+    status: str | None = Query(None, max_length=64),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    filters = [Document.uploaded_by == current_user.id]
+    if status:
+        filters.append(Document.status == status)
+
+    total = db.query(func.count(Document.id)).filter(*filters).scalar()
+    rows = (
+        _document_summary_query(db)
+        .filter(*filters)
+        .order_by(Document.created_at.desc(), Document.id.desc())
+        .limit(limit)
+        .offset(offset)
+        .all()
+    )
+    _log_action(
+        db,
+        "history_list",
+        detail={"limit": limit, "offset": offset, "status": status},
+        user_id=current_user.id,
+    )
+    return {
+        "items": [_document_summary(*row) for row in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/{document_id}", response_model=DocumentSummary)
+def get_document(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    row = (
+        _document_summary_query(db)
+        .filter(Document.id == document_id, Document.uploaded_by == current_user.id)
+        .first()
+    )
+    if row is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+    _log_action(db, "history_open", document_id, user_id=current_user.id)
+    return _document_summary(*row)
+
+
+@router.delete("/{document_id}", status_code=204)
+def delete_document(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = (
+        db.query(Document)
+        .filter(Document.id == document_id, Document.uploaded_by == current_user.id)
+        .with_for_update()
+        .first()
+    )
+    if document is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy tài liệu")
+    if document.status in BUSY_STATUSES:
+        raise HTTPException(status_code=409, detail="Tài liệu đang được xử lý, chưa thể xóa")
+
+    filename = document.filename
+    # formula_entries.document_id không có ON DELETE CASCADE nên xóa công thức trước.
+    db.query(FormulaEntry).filter(FormulaEntry.document_id == document_id).delete(
+        synchronize_session=False
+    )
+    db.delete(document)
+    db.commit()
+    _log_action(db, "history_delete", document_id, {"filename": filename}, current_user.id)
+
+    document_dir = UPLOAD_DIR / str(document_id)
+    try:
+        if document_dir.exists():
+            shutil.rmtree(document_dir)
+    except OSError:
+        logger.exception("Could not remove files of deleted document %s", document_id)
+
+
+@router.get("/{document_id}/source")
+def download_source_pdf(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = _get_owned_document(document_id, current_user, db)
+    source_path = UPLOAD_DIR / str(document_id) / "source.pdf"
+    if not source_path.is_file():
+        raise HTTPException(status_code=404, detail="Không còn file PDF gốc")
+    _log_action(db, "download_source", document_id, user_id=current_user.id)
+    return FileResponse(source_path, media_type="application/pdf", filename=document.filename)
+
+
+@router.get("/{document_id}/export")
+def export_submitted_latex(
+    document_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    document = _get_owned_document(document_id, current_user, db)
+    formulas = (
+        db.query(FormulaEntry)
+        .filter(FormulaEntry.document_id == document_id, FormulaEntry.status == "submitted")
+        .order_by(FormulaEntry.page_number, FormulaEntry.created_at)
+        .all()
+    )
+    if not formulas:
+        raise HTTPException(status_code=409, detail="Chưa có công thức nào được Submit")
+
+    # Chỉ xuất latex_final (nội dung người dùng đã xác nhận), không xuất latex_raw.
+    parts = ["% Math2Latex export - submitted formulas only"]
+    for index, formula in enumerate(formulas, start=1):
+        parts.append(f"\n% Page {formula.page_number} - formula {index}\n\\[\n{formula.latex_final or ''}\n\\]")
+    body = "\n".join(parts) + "\n"
+
+    _log_action(db, "export_latex", document_id, {"formula_count": len(formulas)}, current_user.id)
+    export_name = quote(f"{Path(document.filename).stem}.tex")
+    return Response(
+        content=body,
+        media_type="text/x-tex",
+        headers={"Content-Disposition": f"attachment; filename*=UTF-8''{export_name}"},
+    )
 
 
 @router.get("/{document_id}/pages")
@@ -190,13 +334,13 @@ def recognize_formula_regions(
     db.commit()
     try:
         enqueue_job(process_formula_ocr, document_id)
-        _log_action(db, "recognize_queued", document_id, {"formula_count": len(formulas)})
+        _log_action(db, "recognize_queued", document_id, {"formula_count": len(formulas)}, current_user.id)
     except Exception as error:
         for formula in formulas:
             formula.status = "proposed"
         document.status = "formula_proposals_ready"
         db.commit()
-        _log_action(db, "recognize_job_failed", document_id, {"error": str(error)})
+        _log_action(db, "recognize_job_failed", document_id, {"error": str(error)}, current_user.id)
         logger.error(f"Error queueing OCR: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa OCR vào hàng xử lý") from error
     return {"document_id": document_id, "status": document.status, "queued_count": len(formulas)}
@@ -233,13 +377,13 @@ def retry_failed_formula_ocr(
     db.commit()
     try:
         enqueue_job(process_formula_ocr, document_id)
-        _log_action(db, "retry_queued", document_id, {"formula_count": len(failed_formulas)})
+        _log_action(db, "retry_queued", document_id, {"formula_count": len(failed_formulas)}, current_user.id)
     except Exception as error:
         for formula in failed_formulas:
             formula.status = "ocr_failed"
         document.status = "ocr_completed_with_errors"
         db.commit()
-        _log_action(db, "retry_job_failed", document_id, {"error": str(error)})
+        _log_action(db, "retry_job_failed", document_id, {"error": str(error)}, current_user.id)
         logger.error(f"Error queueing retry: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa OCR vào hàng xử lý") from error
     return {
@@ -389,12 +533,43 @@ def submit_formula(
     formula.status = "submitted"
     db.commit()
     db.refresh(formula)
-    _log_action(db, "submit", formula_id, {"document_id": str(document_id)})
+    _log_action(db, "submit", formula_id, {"document_id": str(document_id)}, current_user.id)
     return {
         "formula_id": formula.id,
         "latex_raw": formula.latex_raw,
         "latex_final": formula.latex_final,
         "status": formula.status,
+    }
+
+
+def _document_summary_query(db: Session):
+    counts = (
+        db.query(
+            FormulaEntry.document_id.label("document_id"),
+            func.count(FormulaEntry.id).label("formula_count"),
+            func.count(case((FormulaEntry.status == "submitted", 1))).label("submitted_count"),
+        )
+        .group_by(FormulaEntry.document_id)
+        .subquery()
+    )
+    return db.query(
+        Document,
+        func.coalesce(counts.c.formula_count, 0),
+        func.coalesce(counts.c.submitted_count, 0),
+    ).outerjoin(counts, counts.c.document_id == Document.id)
+
+
+def _document_summary(document: Document, formula_count: int, submitted_count: int) -> dict:
+    return {
+        "document_id": document.id,
+        "filename": document.filename,
+        "status": document.status,
+        "file_size_bytes": document.file_size_bytes,
+        "page_count": document.page_count,
+        "formula_count": formula_count,
+        "submitted_count": submitted_count,
+        "created_at": document.created_at,
+        "updated_at": document.updated_at,
     }
 
 

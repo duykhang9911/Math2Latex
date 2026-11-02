@@ -11,6 +11,37 @@ const PROCESSING_STATES = new Set(['processing_pages', 'detecting_formulas', 'oc
 
 const apiFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'include' })
 
+const HISTORY_PAGE_SIZE = 10
+
+const formatBytes = (bytes) => {
+  if (bytes == null) return '—'
+  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+const formatDate = (value) => (value ? new Date(value).toLocaleString('vi-VN') : '—')
+
+const fetchHistoryPage = async (offset) => {
+  const response = await apiFetch(`${API}?limit=${HISTORY_PAGE_SIZE}&offset=${offset}`)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.detail || 'Không tải được lịch sử')
+  return data
+}
+
+const downloadFile = async (url, filename) => {
+  const response = await apiFetch(url)
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}))
+    throw new Error(data.detail || 'Không tải được file')
+  }
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = window.document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  link.click()
+  URL.revokeObjectURL(objectUrl)
+}
+
 const STATUS_LABELS = {
   processing_pages: 'Đang tách trang',
   detecting_formulas: 'Đang tìm công thức',
@@ -39,6 +70,9 @@ function App() {
   const [manualRegions, setManualRegions] = useState({})
   const [regionDrafts, setRegionDrafts] = useState({})
   const [regionDrag, setRegionDrag] = useState(null)
+  const [history, setHistory] = useState([])
+  const [historyTotal, setHistoryTotal] = useState(0)
+  const [historyLoading, setHistoryLoading] = useState(false)
 
   useEffect(() => {
     apiFetch(`${AUTH_API}/me`)
@@ -71,6 +105,65 @@ function App() {
       }
       return next
     })
+    return pagesData.pages || []
+  }
+
+  const loadHistory = async (append = false) => {
+    setHistoryLoading(true)
+    try {
+      const data = await fetchHistoryPage(append ? history.length : 0)
+      setHistory((current) => (append ? [...current, ...data.items] : data.items))
+      setHistoryTotal(data.total)
+    } catch (error) {
+      setMessage(error.message || 'Không tải được lịch sử')
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const resetDocumentView = () => {
+    setPages([])
+    setFormulas([])
+    setEdits({})
+    setSelectedFormulaId(null)
+    setManualRegions({})
+    setRegionDrafts({})
+  }
+
+  const openDocument = async (documentId) => {
+    setBusy(true)
+    setMessage('')
+    try {
+      const response = await apiFetch(`${API}/${documentId}`)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.detail || 'Không mở được tài liệu')
+      resetDocumentView()
+      setDocumentInfo({ document_id: data.document_id, filename: data.filename, status: data.status })
+      const loadedPages = await refreshDocument(documentId)
+      if (loadedPages.length === 0 && !PROCESSING_STATES.has(data.status) && data.status !== 'processing_failed') {
+        setMessage('Không còn ảnh trang của tài liệu này. Bạn vẫn có thể tải PDF gốc hoặc xuất LaTeX đã lưu nếu còn.')
+      }
+    } catch (error) {
+      setMessage(error.message || 'Không mở được tài liệu')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteHistoryItem = async (item) => {
+    if (!window.confirm(`Xóa "${item.filename}" cùng toàn bộ công thức đã lưu? Không thể hoàn tác.`)) return
+    const response = await apiFetch(`${API}/${item.document_id}`, { method: 'DELETE' })
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}))
+      throw new Error(data.detail || 'Không xóa được tài liệu')
+    }
+    setMessage('Đã xóa tài liệu khỏi lịch sử.')
+    if (documentInfo?.document_id === item.document_id) {
+      setDocumentInfo(null)
+      resetDocumentView()
+    } else {
+      await loadHistory()
+    }
   }
 
   useEffect(() => {
@@ -80,6 +173,25 @@ function App() {
     }, 1600)
     return () => window.clearInterval(timer)
   }, [documentInfo?.document_id, documentInfo?.status])
+
+  // Tải lại lịch sử khi đăng nhập và mỗi khi tài liệu đang mở đổi trạng thái (upload, OCR xong...).
+  const currentUserId = currentUser?.id
+  const openDocumentId = documentInfo?.document_id
+  const openDocumentStatus = documentInfo?.status
+  useEffect(() => {
+    if (!currentUserId) return undefined
+    let cancelled = false
+    fetchHistoryPage(0)
+      .then((data) => {
+        if (cancelled) return
+        setHistory(data.items)
+        setHistoryTotal(data.total)
+      })
+      .catch((error) => {
+        if (!cancelled) setMessage(error.message || 'Không tải được lịch sử')
+      })
+    return () => { cancelled = true }
+  }, [currentUserId, openDocumentId, openDocumentStatus])
 
   const handleAuth = async (event) => {
     event.preventDefault()
@@ -109,6 +221,8 @@ function App() {
     setDocumentInfo(null)
     setPages([])
     setFormulas([])
+    setHistory([])
+    setHistoryTotal(0)
     setSelectedFile(null)
     setMessage('Bạn đã đăng xuất.')
   }
@@ -124,7 +238,7 @@ function App() {
       const response = await apiFetch(`${API}/upload`, { method: 'POST', body: formData })
       const data = await response.json()
       if (!response.ok) throw new Error(data.detail || 'Upload thất bại')
-      setDocumentInfo(data)
+      setDocumentInfo({ ...data, filename: selectedFile.name })
       setPages([])
       setFormulas([])
       setEdits({})
@@ -342,6 +456,7 @@ function App() {
     if (!response.ok) throw new Error(data.detail || 'Không lưu được LaTeX')
     setFormulas((current) => current.map((item) => item.formula_id === formula.formula_id ? { ...item, status: data.status, latex_raw: data.latex_raw, latex_final: data.latex_final } : item))
     setMessage('Đã lưu LaTeX cuối cùng cho công thức.')
+    await loadHistory()
   }
 
   const perform = async (callback) => {
@@ -420,12 +535,45 @@ function App() {
 
       {message && <div className="notice" role="status">{message}</div>}
 
+      <section className="history-section" aria-labelledby="history-title">
+        <div className="section-heading">
+          <div><p className="eyebrow">Upload history</p><h3 id="history-title">Lịch sử tải lên</h3></div>
+          <span className="count-label">{historyTotal} tài liệu</span>
+        </div>
+        {history.length === 0 && !historyLoading && <p className="empty-state">Bạn chưa tải tài liệu nào.</p>}
+        <ul className="history-list">
+          {history.map((item) => (
+            <li className={`history-item ${documentInfo?.document_id === item.document_id ? 'is-current' : ''}`} key={item.document_id}>
+              <button type="button" className="history-open" onClick={() => openDocument(item.document_id)} disabled={busy}>
+                <span className="history-name">{item.filename}</span>
+                <span className="history-meta">
+                  {formatDate(item.created_at)} · {formatBytes(item.file_size_bytes)} · {item.page_count ?? '—'} trang · {item.submitted_count}/{item.formula_count} công thức đã lưu
+                </span>
+              </button>
+              <div className={`status-pill status-${item.status}`}>
+                <span className="status-dot" />{STATUS_LABELS[item.status] || item.status}
+              </div>
+              <div className="history-actions">
+                <button type="button" className="text-button" onClick={() => perform(() => downloadFile(`${API}/${item.document_id}/source`, item.filename))}>Tải PDF</button>
+                <button type="button" className="text-button" disabled={item.submitted_count === 0} onClick={() => perform(() => downloadFile(`${API}/${item.document_id}/export`, `${item.filename.replace(/\.pdf$/i, '')}.tex`))}>Xuất .tex</button>
+                <button type="button" className="text-button history-delete" disabled={PROCESSING_STATES.has(item.status)} onClick={() => perform(() => deleteHistoryItem(item))}>Xóa</button>
+              </div>
+            </li>
+          ))}
+        </ul>
+        {history.length < historyTotal && (
+          <button type="button" className="text-button" onClick={() => loadHistory(true)} disabled={historyLoading}>
+            {historyLoading ? 'Đang tải…' : 'Xem thêm'}
+          </button>
+        )}
+      </section>
+
       {documentInfo && (
         <section className="document-workspace">
           <div className="document-heading">
             <div>
               <p className="eyebrow">Current document</p>
-              <h2>{selectedFile?.name || documentInfo.filename || 'Tài liệu PDF'}</h2>
+              <h2>{documentInfo.filename || selectedFile?.name || 'Tài liệu PDF'}</h2>
               <span className="document-id">{documentInfo.document_id}</span>
             </div>
             <div className={`status-pill status-${documentInfo.status}`}>

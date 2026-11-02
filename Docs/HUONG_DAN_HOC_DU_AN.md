@@ -311,6 +311,11 @@ Math2Latex/
 |---|---|
 | `GET /health` | Kiểm tra backend có đang chạy không. |
 | `POST /api/documents/upload` | Gửi file lên; PDF tạo document và enqueue render/detect. |
+| `GET /api/documents?limit=&offset=&status=` | Lịch sử tải lên của user đang đăng nhập (mới nhất trước, `limit` tối đa 100), kèm `formula_count`/`submitted_count`. |
+| `GET /api/documents/{id}` | Metadata một tài liệu trong lịch sử (cùng dạng một phần tử của danh sách). |
+| `DELETE /api/documents/{id}` | Xóa tài liệu, công thức và file; 409 nếu đang xử lý. |
+| `GET /api/documents/{id}/source` | Tải PDF gốc (404 nếu file đã mất). |
+| `GET /api/documents/{id}/export` | Tải file `.tex` gồm `latex_final` của các công thức đã Submit (409 nếu chưa có). |
 | `GET /api/documents/{id}/pages` | Lấy trạng thái document và danh sách trang/kích thước ảnh. |
 | `GET /api/documents/{id}/pages/{page_number}` | Tải ảnh một trang PDF. |
 | `GET /api/documents/{id}/formulas` | Lấy các vùng công thức và kết quả LaTeX. |
@@ -435,5 +440,5 @@ Trong Compose, worker dùng `MATH_DETECTOR_DEVICE=cuda`, MFD backend `onnx`, PyT
 - MFD ONNX session có CUDA provider nhưng còn warning runtime; cần profile sâu hơn để xác nhận node thực sự chạy trên GPU.
 - Redis AOF/volume đã cấu hình; khả năng phục hồi job sau restart/crash chưa được kiểm thử.
 - Frontend build/lint đã qua; cần kiểm tra font MathLive trực quan sau refresh container.
-- Login, phân quyền và ghi log đầy đủ chưa được triển khai dù đã có bảng `users`, `logs`.
+- Login và owner scoping đã có; phân quyền theo vai trò chưa có. Log đã ghi cho upload/OCR/Submit và các thao tác lịch sử (kèm `user_id`) nhưng chưa phủ mọi API.
 - Không sửa migration đã áp dụng. Tạo migration Alembic mới khi đổi schema database.

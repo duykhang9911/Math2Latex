@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime, ForeignKey
+from sqlalchemy import BigInteger, Column, String, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
@@ -22,4 +22,14 @@ class Document(Base):
     # Nullable để giữ các document cũ chưa gắn tài khoản; document mới được gắn user đăng nhập.
     uploaded_by = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
+    # Metadata cho lịch sử: file_size_bytes ghi lúc upload, page_count ghi khi worker render xong.
+    # Document cũ (trước migration b7c1d2e3f4a5) để NULL.
+    file_size_bytes = Column(BigInteger, nullable=True)
+    page_count = Column(Integer, nullable=True)
+
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )

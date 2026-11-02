@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
 from app.core.database import Base
@@ -16,5 +16,8 @@ class Log(Base):
     # JSONB: kiểu dữ liệu đặc biệt của PostgreSQL, lưu được cả 1 object JSON
     # linh hoạt (vd: {"error": "...", "duration_ms": 120}) mà không cần tạo thêm cột riêng
     detail = Column(JSONB, nullable=True)
+
+    # Người thực hiện hành động; NULL với log hệ thống/worker hoặc khi user bị xóa.
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))

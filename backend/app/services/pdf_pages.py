@@ -32,9 +32,10 @@ def process_pdf_pages(document_id: UUID, pdf_path: Path) -> None:
     db = SessionLocal()
     try:
         pages_dir = pdf_path.parent / "pages"
-        render_pdf_pages(pdf_path, pages_dir)
+        page_count = render_pdf_pages(pdf_path, pages_dir)
         document = db.get(Document, document_id)
         if document is not None:
+            document.page_count = page_count
             document.status = "detecting_formulas"
             db.commit()
 
