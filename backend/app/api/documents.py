@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from PIL import Image
 
 from app.core.database import get_db
-from app.models import Document, FormulaEntry, Log
+from app.models import Document, FormulaEntry, Log, User
 from app.core.queue import enqueue_job
 from app.core.security import get_current_user
 from app.services.pdf_pages import process_pdf_pages
@@ -19,7 +19,6 @@ from app.schemas.document import DocumentListResponse, DocumentSummary, Document
 from app.schemas.formula import FormulaRegionCreate, FormulaRegionUpdate, FormulaSubmit
 from app.services.formula_ocr import process_formula_ocr
 from app.services.formula_regions import save_formula_crop
-from app.models import User
 
 logger = logging.getLogger(__name__)
 
