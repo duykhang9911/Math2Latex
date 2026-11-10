@@ -42,7 +42,7 @@ def pg_sessions(monkeypatch):
 
     jobs = []
     monkeypatch.setattr(security, "AUTH_SECRET", os.environ["AUTH_SECRET"])
-    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args: jobs.append(args))
+    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args, **kwargs: jobs.append(args))
     monkeypatch.setattr(documents_api, "_log_action", lambda *args, **kwargs: None)
     app.dependency_overrides[get_db] = _get_db
     yield sessions, jobs

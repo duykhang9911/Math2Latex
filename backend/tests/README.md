@@ -13,8 +13,8 @@ Cấu trúc hiện có và đề xuất:
 ```text
 tests/
 |-- unit/          # security, bbox, status transitions, service behavior với fake model
-|-- api/           # FastAPI route (SQLite in-memory, enqueue/log được thay bằng fake); chưa có test PostgreSQL thật
-|-- worker/        # (chưa có) RQ enqueue, retries, failure/restart behavior
+|-- api/           # FastAPI route (SQLite in-memory, enqueue/log được thay bằng fake); test_ocr_queue_concurrency.py cần PostgreSQL (TEST_PG_URL)
+|-- worker/        # job OCR/PDF với fake model, failure callback, job chạy trùng (SQLite); drill restart worker/Redis chạy thủ công, ghi ở ARCHITECTURE.md
 `-- fixtures/      # chỉ dữ liệu synthetic hoặc PDF được phép dùng
 ```
 

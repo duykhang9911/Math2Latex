@@ -14,10 +14,10 @@ from app.core.database import get_db
 from app.models import Document, FormulaEntry, Log, User
 from app.core.queue import enqueue_job
 from app.core.security import get_current_user
-from app.services.pdf_pages import process_pdf_pages
+from app.services.pdf_pages import mark_pdf_job_failed, process_pdf_pages
 from app.schemas.document import DocumentListResponse, DocumentSummary, DocumentUploadResponse
 from app.schemas.formula import FormulaRegionCreate, FormulaRegionUpdate, FormulaSubmit
-from app.services.formula_ocr import process_formula_ocr
+from app.services.formula_ocr import mark_ocr_job_failed, process_formula_ocr
 from app.services.formula_regions import save_formula_crop
 
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ async def upload_document(
         raise HTTPException(status_code=500, detail="Lỗi lưu thông tin tài liệu")
 
     try:
-        enqueue_job(process_pdf_pages, document_id, save_path)
+        enqueue_job(process_pdf_pages, document_id, save_path, on_failure=mark_pdf_job_failed)
     except Exception as error:
         db.query(Document).filter(Document.id == document_id).update({"status": "processing_failed"})
         db.commit()
@@ -332,7 +332,7 @@ def recognize_formula_regions(
     document.status = "ocr_processing"
     db.commit()
     try:
-        enqueue_job(process_formula_ocr, document_id)
+        enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed)
         _log_action(db, "recognize_queued", document_id, {"formula_count": len(formulas)}, current_user.id)
     except Exception as error:
         for formula in formulas:
@@ -375,7 +375,7 @@ def retry_failed_formula_ocr(
     document.status = "ocr_processing"
     db.commit()
     try:
-        enqueue_job(process_formula_ocr, document_id)
+        enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed)
         _log_action(db, "retry_queued", document_id, {"formula_count": len(failed_formulas)}, current_user.id)
     except Exception as error:
         for formula in failed_formulas:

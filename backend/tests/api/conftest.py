@@ -56,7 +56,7 @@ def logged_actions(monkeypatch):
 @pytest.fixture()
 def enqueued_jobs(monkeypatch):
     jobs = []
-    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args: jobs.append(args))
+    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args, **kwargs: jobs.append(args))
     return jobs
 
 

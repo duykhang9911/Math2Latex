@@ -28,9 +28,30 @@ def render_pdf_pages(pdf_path: Path, output_dir: Path, dpi: int = 150) -> int:
         return len(pdf)
 
 
+def mark_pdf_job_failed(job, connection, type, value, traceback) -> None:
+    """RQ failure callback: job render/detect lỗi, quá timeout hoặc bị bỏ rơi khi worker chết."""
+    db = SessionLocal()
+    try:
+        document = db.get(Document, job.args[0])
+        if document is not None and document.status in {"processing_pages", "detecting_formulas"}:
+            document.status = "processing_failed"
+            db.commit()
+    except Exception:
+        db.rollback()
+        logger.exception("Could not mark PDF job %s as failed", job.id)
+    finally:
+        db.close()
+
+
 def process_pdf_pages(document_id: UUID, pdf_path: Path) -> None:
     db = SessionLocal()
     try:
+        # Job trùng/chạy lại sau khi document đã xử lý xong: không tạo thêm FormulaEntry/crop.
+        document = db.get(Document, document_id)
+        if document is None or document.status != "processing_pages":
+            logger.warning("Skip PDF job for document %s: not waiting for processing", document_id)
+            return
+
         pages_dir = pdf_path.parent / "pages"
         page_count = render_pdf_pages(pdf_path, pages_dir)
         document = db.get(Document, document_id)

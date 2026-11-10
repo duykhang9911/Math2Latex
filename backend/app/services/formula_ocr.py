@@ -26,6 +26,36 @@ def _load_ocr_model():
     return LatexOCR(arguments)
 
 
+def _fail_queued_formulas(db, document_id: UUID) -> None:
+    """Đưa công thức còn `ocr_queued` về `ocr_failed` để người dùng bấm Thử lại."""
+    queued_formulas = (
+        db.query(FormulaEntry)
+        .filter(
+            FormulaEntry.document_id == document_id,
+            FormulaEntry.status == "ocr_queued",
+        )
+        .all()
+    )
+    for formula in queued_formulas:
+        formula.status = "ocr_failed"
+    document = db.get(Document, document_id)
+    if document is not None and document.status == "ocr_processing":
+        document.status = "ocr_completed_with_errors"
+    db.commit()
+
+
+def mark_ocr_job_failed(job, connection, type, value, traceback) -> None:
+    """RQ failure callback: job OCR lỗi, quá timeout hoặc bị bỏ rơi khi worker chết."""
+    db = SessionLocal()
+    try:
+        _fail_queued_formulas(db, job.args[0])
+    except Exception:
+        db.rollback()
+        logger.exception("Could not mark OCR job %s as failed", job.id)
+    finally:
+        db.close()
+
+
 def process_formula_ocr(document_id: UUID) -> None:
     db = SessionLocal()
     try:
@@ -40,6 +70,10 @@ def process_formula_ocr(document_id: UUID) -> None:
         )
         model = _load_ocr_model()
         for formula in formulas:
+            # Job trùng/chạy lại: bỏ qua công thức đã được job khác xử lý.
+            db.refresh(formula)
+            if formula.status != "ocr_queued":
+                continue
             try:
                 with Image.open(Path(formula.image_path)) as image:
                     formula.latex_raw = model(image.convert("RGB"))
@@ -69,19 +103,6 @@ def process_formula_ocr(document_id: UUID) -> None:
     except Exception:
         db.rollback()
         logger.exception("OCR job failed for document %s", document_id)
-        queued_formulas = (
-            db.query(FormulaEntry)
-            .filter(
-                FormulaEntry.document_id == document_id,
-                FormulaEntry.status == "ocr_queued",
-            )
-            .all()
-        )
-        for formula in queued_formulas:
-            formula.status = "ocr_failed"
-        document = db.get(Document, document_id)
-        if document is not None:
-            document.status = "ocr_completed_with_errors"
-            db.commit()
+        _fail_queued_formulas(db, document_id)
     finally:
         db.close()
