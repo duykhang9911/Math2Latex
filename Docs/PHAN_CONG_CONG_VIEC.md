@@ -203,6 +203,13 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 **Gate G4 (feature freeze):** FR0–FR4 chạy end-to-end; backend + frontend test pass; lint/build pass; từ đây không thêm chức năng.
 
+**Tiến độ Sprint 4 — phần của Khang (cập nhật 2026-11-10):**
+
+| Task | Trạng thái |
+|---|---|
+| S4-07 | Xong: thêm `tests/api/test_formula_regions.py`, `test_formula_submit.py`, `tests/worker/test_pdf_pipeline.py`; toàn bộ suite 179 test pass (3 test cần PostgreSQL/Redis tạm). Bỏ thử logic ghi đè `latex_raw` và kiểm tra bounds thì test tương ứng fail. Bằng chứng truy vết ở mục 7 |
+| S4-08 | Cần Toàn; chưa làm |
+| S4-01…S4-06, S4-09, S4-10 | Việc của Toàn, chưa làm |
 ### Sprint 5 (tuần 9–10) — Đánh giá chất lượng
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
