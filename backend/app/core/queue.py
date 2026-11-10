@@ -13,14 +13,14 @@ def get_ocr_queue() -> Queue:
     return Queue(OCR_QUEUE_NAME, connection=connection, default_timeout=7200)
 
 
-def enqueue_job(function, *args, on_failure=None):
+def enqueue_job(function, *args, on_failure=None, job_timeout=7200):
     # on_failure chạy trong worker khi job lỗi, hết timeout hoặc bị bỏ rơi do worker chết;
     # callable phải import được trong process RQ để cập nhật trạng thái trong PostgreSQL.
     return get_ocr_queue().enqueue(
         function,
         *args,
         on_failure=on_failure,
-        job_timeout=7200,
+        job_timeout=job_timeout,
         result_ttl=86400,
         failure_ttl=604800,
     )

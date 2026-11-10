@@ -231,3 +231,21 @@ def test_pdf_job_marks_document_failed_for_a_corrupt_pdf(worker_db, tmp_path):
     assert _document_status(worker_db, document_id) == "processing_failed"
     with worker_db() as db:
         assert db.query(FormulaEntry).count() == 0
+
+def test_pdf_job_refuses_a_file_over_the_page_limit(worker_db, tmp_path, monkeypatch):
+    import pymupdf
+
+    from app.services import upload_validation
+
+    monkeypatch.setattr(upload_validation, "MAX_PDF_PAGES", 2)
+    source = tmp_path / "source.pdf"
+    with pymupdf.open() as document:
+        for _ in range(3):
+            document.new_page()
+        document.save(source)
+    document_id = _add_document(worker_db, status="processing_pages")
+
+    pdf_pages.process_pdf_pages(document_id, source)
+
+    assert _document_status(worker_db, document_id) == "processing_failed"
+    assert not (tmp_path / "pages").exists()

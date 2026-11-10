@@ -5,12 +5,14 @@ import logging
 from pathlib import Path
 from urllib.parse import quote
 from fastapi import APIRouter, File, Query, Response, UploadFile, Depends, HTTPException
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 from PIL import Image
 
 from app.core.database import get_db
+from app.core.limits import MAX_FILE_SIZE, OCR_JOB_TIMEOUT_SECONDS, PDF_JOB_TIMEOUT_SECONDS
 from app.models import Document, FormulaEntry, Log, User
 from app.core.queue import enqueue_job
 from app.core.security import get_current_user
@@ -19,6 +21,7 @@ from app.schemas.document import DocumentListResponse, DocumentSummary, Document
 from app.schemas.formula import FormulaRegionCreate, FormulaRegionUpdate, FormulaSubmit
 from app.services.formula_ocr import mark_ocr_job_failed, process_formula_ocr
 from app.services.formula_regions import save_formula_crop
+from app.services.upload_validation import PdfRejected, inspect_pdf, sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,7 @@ UPLOAD_DIR = Path(os.getenv("UPLOAD_DIR", "/app/uploads"))
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_EXTS = {".pdf"}
-MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB
+UPLOAD_REJECTION_STATUS = {"invalid": 400, "encrypted": 400, "too_many_pages": 422, "page_too_large": 422}
 MAX_HISTORY_PAGE_SIZE = 100
 # Đang có job worker ghi vào thư mục tài liệu; không cho xóa trong lúc này.
 BUSY_STATUSES = {"processing_pages", "detecting_formulas", "ocr_processing"}
@@ -64,7 +67,7 @@ async def upload_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Chưa chọn file")
 
-    safe_filename = file.filename.replace("\\", "/").rsplit("/", 1)[-1]
+    safe_filename = sanitize_filename(file.filename)
     file_ext = Path(safe_filename).suffix.lower()
     if file_ext not in ALLOWED_EXTS:
         raise HTTPException(
@@ -94,11 +97,15 @@ async def upload_document(
                 if bytes_written > MAX_FILE_SIZE:
                     raise HTTPException(status_code=413, detail=f"File quá lớn. Tối đa {MAX_FILE_SIZE // (1024 * 1024)}MB")
                 f.write(chunk)
+        pdf_info = await run_in_threadpool(inspect_pdf, save_path)
+    except PdfRejected as rejected:
+        shutil.rmtree(document_dir, ignore_errors=True)
+        raise HTTPException(status_code=UPLOAD_REJECTION_STATUS[rejected.reason], detail=rejected.message) from None
     except HTTPException:
+        shutil.rmtree(document_dir, ignore_errors=True)
         raise
     except Exception as e:
-        save_path.unlink(missing_ok=True)
-        document_dir.rmdir()
+        shutil.rmtree(document_dir, ignore_errors=True)
         logger.error(f"Error writing file: {e}")
         raise HTTPException(status_code=500, detail="Lỗi lưu file")
 
@@ -108,6 +115,7 @@ async def upload_document(
         status="processing_pages",
         uploaded_by=current_user.id,
         file_size_bytes=bytes_written,
+        page_count=pdf_info.page_count,
     )
     try:
         db.add(new_document)
@@ -116,13 +124,18 @@ async def upload_document(
         _log_action(db, "upload", document_id, {"filename": safe_filename, "size_bytes": bytes_written}, current_user.id)
     except Exception as e:
         db.rollback()
-        save_path.unlink(missing_ok=True)
-        document_dir.rmdir()
+        shutil.rmtree(document_dir, ignore_errors=True)
         logger.error(f"Error creating document record: {e}")
         raise HTTPException(status_code=500, detail="Lỗi lưu thông tin tài liệu")
 
     try:
-        enqueue_job(process_pdf_pages, document_id, save_path, on_failure=mark_pdf_job_failed)
+        enqueue_job(
+            process_pdf_pages,
+            document_id,
+            save_path,
+            on_failure=mark_pdf_job_failed,
+            job_timeout=PDF_JOB_TIMEOUT_SECONDS,
+        )
     except Exception as error:
         db.query(Document).filter(Document.id == document_id).update({"status": "processing_failed"})
         db.commit()
@@ -341,7 +354,7 @@ def recognize_formula_regions(
     document.status = "ocr_processing"
     db.commit()
     try:
-        enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed)
+        enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed, job_timeout=OCR_JOB_TIMEOUT_SECONDS)
     except Exception as error:
         for formula in formulas:
             formula.status = "proposed"
@@ -384,7 +397,7 @@ def retry_failed_formula_ocr(
     document.status = "ocr_processing"
     db.commit()
     try:
-        enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed)
+        enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed, job_timeout=OCR_JOB_TIMEOUT_SECONDS)
     except Exception as error:
         for formula in failed_formulas:
             formula.status = "ocr_failed"

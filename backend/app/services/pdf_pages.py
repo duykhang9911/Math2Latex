@@ -5,13 +5,15 @@ from uuid import UUID
 import pymupdf
 
 from app.core.database import SessionLocal
+from app.core.limits import RENDER_DPI
 from app.models import Document, FormulaEntry
 from app.services.formula_regions import detect_page_regions
+from app.services.upload_validation import inspect_pdf
 
 logger = logging.getLogger(__name__)
 
 
-def render_pdf_pages(pdf_path: Path, output_dir: Path, dpi: int = 150) -> int:
+def render_pdf_pages(pdf_path: Path, output_dir: Path, dpi: int = RENDER_DPI) -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     scale = dpi / 72
 
@@ -52,6 +54,8 @@ def process_pdf_pages(document_id: UUID, pdf_path: Path) -> None:
             logger.warning("Skip PDF job for document %s: not waiting for processing", document_id)
             return
 
+        # API đã kiểm tra lúc upload; kiểm tra lại để worker không render file vượt giới hạn.
+        inspect_pdf(pdf_path)
         pages_dir = pdf_path.parent / "pages"
         page_count = render_pdf_pages(pdf_path, pages_dir)
         document = db.get(Document, document_id)

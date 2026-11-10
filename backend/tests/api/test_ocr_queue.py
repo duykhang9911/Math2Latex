@@ -3,6 +3,7 @@ from uuid import uuid4
 import pytest
 
 from app.api import documents as documents_api
+from app.core import limits
 from app.models import Document, FormulaEntry
 from app.services import formula_ocr, pdf_pages
 
@@ -157,12 +158,12 @@ def test_retry_restores_failed_state_when_redis_is_down(
     assert [entry["action"] for entry in logged_actions] == ["retry_job_failed"]
 
 
-def test_upload_marks_document_failed_when_redis_is_down(make_client, make_user, db_session, monkeypatch):
+def test_upload_marks_document_failed_when_redis_is_down(make_client, make_user, db_session, monkeypatch, make_pdf):
     user = make_user("alice")
     monkeypatch.setattr(documents_api, "enqueue_job", _redis_down)
 
     response = make_client(user).post(
-        "/api/documents/upload", files={"file": ("de thi.pdf", b"%PDF-1.4 fake", "application/pdf")}
+        "/api/documents/upload", files={"file": ("de thi.pdf", make_pdf(), "application/pdf")}
     )
 
     assert response.status_code == 503
@@ -182,13 +183,13 @@ def test_retry_is_allowed_for_failed_document_states(make_client, make_user, db_
     assert response.status_code == 202
     assert len(enqueued_jobs) == 1
 
-def test_jobs_are_enqueued_with_failure_callbacks(make_client, make_user, db_session, monkeypatch):
+def test_jobs_are_enqueued_with_failure_callbacks_and_timeouts(make_client, make_user, db_session, monkeypatch, make_pdf):
     user = make_user("alice")
     client = make_client(user)
     calls = []
     monkeypatch.setattr(documents_api, "enqueue_job", lambda *args, **kwargs: calls.append((args, kwargs)))
 
-    client.post("/api/documents/upload", files={"file": ("de thi.pdf", b"%PDF-1.4 fake", "application/pdf")})
+    client.post("/api/documents/upload", files={"file": ("de thi.pdf", make_pdf(), "application/pdf")})
     recognizable = _add_document(db_session, user)
     _add_formulas(db_session, recognizable, ["proposed"])
     client.post(f"/api/documents/{recognizable.id}/formulas/recognize")
@@ -201,6 +202,11 @@ def test_jobs_are_enqueued_with_failure_callbacks(make_client, make_user, db_ses
         pdf_pages.mark_pdf_job_failed,
         formula_ocr.mark_ocr_job_failed,
         formula_ocr.mark_ocr_job_failed,
+    ]
+    assert [kwargs["job_timeout"] for _args, kwargs in calls] == [
+        limits.PDF_JOB_TIMEOUT_SECONDS,
+        limits.OCR_JOB_TIMEOUT_SECONDS,
+        limits.OCR_JOB_TIMEOUT_SECONDS,
     ]
 
 @pytest.mark.parametrize(

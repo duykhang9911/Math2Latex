@@ -83,3 +83,21 @@ def make_user(db_session):
         return user
 
     return _make
+
+@pytest.fixture()
+def make_pdf():
+    """Tạo PDF hợp lệ nhỏ bằng PyMuPDF: make_pdf(pages=1, size=(595, 842), password=None) -> bytes."""
+    import pymupdf
+
+    def _make(pages: int = 1, size: tuple[int, int] = (595, 842), password: str | None = None) -> bytes:
+        document = pymupdf.open()
+        for _ in range(pages):
+            document.new_page(width=size[0], height=size[1])
+        if password:
+            data = document.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=password + "-owner")
+        else:
+            data = document.tobytes()
+        document.close()
+        return data
+
+    return _make

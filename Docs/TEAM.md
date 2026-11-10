@@ -4,8 +4,8 @@ Hai thành viên đã xác nhận. MSSV, nhóm/lớp, giảng viên, deadline v�
 
 | Thành viên | Owner chính | Owner hỗ trợ | Review chéo |
 |---|---|---|---|
-| Đoàn Trương Duy Khang | Backend/API, PostgreSQL/Alembic, Redis/RQ, Docker/GPU runtime, xử lý PDF/MFD/OCR | Review API và state với frontend; hỗ trợ integration/demo | Review frontend/API contract và test người dùng của Ngô Hồ Tuấn Toàn |
-| Ngô Hồ Tuấn Toàn | Frontend/MathLive, accessibility, browser tests, bộ PDF đánh giá, tài liệu và demo | Thu thập PDF có quyền dùng; kiểm thử end-to-end/accuracy cùng backend | Review service/API behavior, bbox và dữ liệu persistence của Đoàn Trương Duy Khang |
+| Đoàn Trương Duy Khang| mssv: 2111844 |lớp: CTK45A| Backend/API, PostgreSQL/Alembic, Redis/RQ, Docker/GPU runtime, xử lý PDF/MFD/OCR | Review API và state với frontend; hỗ trợ integration/demo | Review frontend/API contract và test người dùng của Ngô Hồ Tuấn Toàn |
+| Ngô Hồ Tấn Toàn| mssv:2212473 |lớp: CTK46A| Frontend/MathLive, accessibility, browser tests, bộ PDF đánh giá, tài liệu và demo | Thu thập PDF có quyền dùng; kiểm thử end-to-end/accuracy cùng backend | Review service/API behavior, bbox và dữ liệu persistence của Đoàn Trương Duy Khang |
 
 ## Quy tắc phối hợp
 

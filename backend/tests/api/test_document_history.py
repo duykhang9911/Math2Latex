@@ -32,16 +32,18 @@ def _add_formula(db, document, status="ocr_complete", page_number=1, latex_raw="
     return formula
 
 
-def test_upload_records_size_and_returns_document_id(make_client, make_user, db_session, upload_dir, enqueued_jobs):
+def test_upload_records_size_and_returns_document_id(make_client, make_user, db_session, upload_dir, enqueued_jobs, make_pdf):
     user = make_user("alice")
     client = make_client(user)
+    pdf = make_pdf(pages=2)
 
-    response = client.post("/api/documents/upload", files={"file": ("de thi.pdf", b"%PDF-1.4 fake", "application/pdf")})
+    response = client.post("/api/documents/upload", files={"file": ("de thi.pdf", pdf, "application/pdf")})
 
     assert response.status_code == 200, response.text
     body = response.json()
     document = db_session.get(Document, __import__("uuid").UUID(body["document_id"]))
-    assert document.file_size_bytes == len(b"%PDF-1.4 fake")
+    assert document.file_size_bytes == len(pdf)
+    assert document.page_count == 2
     assert document.uploaded_by == user.id
     assert len(enqueued_jobs) == 1
 
