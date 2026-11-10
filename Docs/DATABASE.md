@@ -38,6 +38,7 @@ PDF, page images và formula crops nằm trong `backend/uploads/`; Redis/RQ ch�
 - `a6b0f1c2d3e4_add_user_ownership_foreign_key.py`: nối `documents.uploaded_by` tới `users.id`, nullable và `ON DELETE SET NULL`.
 - `b7c1d2e3f4a5_add_document_history_columns.py`: thêm `documents.file_size_bytes/page_count/updated_at` (backfill `updated_at = created_at`), index lịch sử và `logs.user_id` (FK `ON DELETE SET NULL`).
 - Luôn tạo revision mới; không chỉnh revision đã áp dụng.
+- Kiểm thử ngày 2026-11-10 trên database tạm (đã xóa): `upgrade head` từ DB rỗng, `downgrade base`, `upgrade head` lại đều chạy hết 4 revision; với DB giữ một document ở revision `7fd904b9f5b1`, `upgrade head` giữ nguyên dòng cũ, `uploaded_by`/`file_size_bytes`/`page_count` là NULL và `updated_at` được backfill từ `created_at`.
 
 ```powershell
 docker compose exec backend alembic current

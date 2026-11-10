@@ -44,7 +44,7 @@ PostgreSQL là nguồn canonical. Redis/AOF điều phối job, không thay data
 
 ## GPU và độ tin cậy
 
-Compose yêu cầu GPU ở worker. Host và worker container cần `nvidia-smi`, PyTorch CUDA và ONNX provider/inference đều được xác minh riêng. Pix2Text ONNX CUDA từng báo warning plugin EP; nếu còn lỗi, thử MFD PyTorch backend CUDA. Redis AOF + volume giúp giữ queue, nhưng cần test worker restart, retry/idempotency và failed job policy.
+GPU là tùy chọn: dòng `gpus: all` của worker trong Compose đang comment và `MATH_DETECTOR_DEVICE` mặc định `cpu`. Kiểm tra ngày 2026-11-10 trong worker: PyTorch `2.15.0+cu132` báo `cuda_available=False`, ONNX providers là `AzureExecutionProvider, CPUExecutionProvider`, container không có `nvidia-smi` — tức đang chạy CPU. Khi bật GPU, host và worker container cần `nvidia-smi`, PyTorch CUDA và ONNX provider/inference đều được xác minh riêng. Pix2Text ONNX CUDA từng báo warning plugin EP; nếu còn lỗi, thử MFD PyTorch backend CUDA. Redis AOF + volume giúp giữ queue, nhưng cần test worker restart, retry/idempotency và failed job policy.
 
 Production nhiều host cần shared object storage/volume cho file và model cache; local Compose dùng bind mount.
 
