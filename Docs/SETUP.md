@@ -48,6 +48,21 @@ Uploads ở `backend/uploads/<document_uuid>/`. Model cache hiện nằm trong f
 
 Compose hiện có local default database credentials; không dùng ở môi trường chia sẻ/production. Đăng ký/đăng nhập username và mật khẩu đã có; mỗi document mới được gắn với user đăng nhập. Email verification, password reset, roles và login rate limiting chưa triển khai; không expose app công khai trước khi giải quyết các yêu cầu này.
 
+## Xem database bằng pgAdmin 4
+
+pgAdmin không tự tìm database trong Docker; cần đăng ký server một lần. Chuột phải **Servers** → **Register** → **Server…**, đặt `Name` ở tab General, rồi điền tab Connection theo `docker-compose.yml`:
+
+| Trường | Giá trị |
+|---|---|
+| Host name/address | `127.0.0.1` |
+| Port | `5432` |
+| Maintenance database | `math2latex` |
+| Username / Password | `math2latex_user` / `math2latex_pass` |
+
+Bảng nằm ở **Servers → Math2Latex → Databases → math2latex → Schemas → public → Tables**: `users`, `documents`, `formula_entries`, `logs`, `alembic_version`. Dùng `127.0.0.1` thay vì `localhost` vì cổng 5432 trên Windows có thể bị `wslrelay` giữ ở địa chỉ IPv6. Credentials này chỉ dành cho local. Cần `db` đang chạy (`docker compose ps`).
+
+Không có pgAdmin thì dùng `docker compose exec db psql -U math2latex_user -d math2latex -c "\dt"`.
+
 ## Troubleshooting
 
 - Worker không nhận job: kiểm tra Redis healthy, `REDIS_URL`, queue name `math2latex`, worker logs.

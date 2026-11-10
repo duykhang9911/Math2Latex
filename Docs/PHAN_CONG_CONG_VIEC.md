@@ -120,12 +120,21 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 **Gate G1:** stack chạy từ clone sạch; contract khóa; biết GPU hay CPU; có ít nhất 1 PDF hợp lệ.
 
+**Tiến độ Sprint 1 (cập nhật 2026-11-10):**
+
+| Task | Trạng thái |
+|---|---|
+| S1-01, S1-02, S1-03, S1-06 | Xong |
+| S1-05 | Xong phần tài liệu: bảng API trong ARCHITECTURE khớp OpenAPI; chờ Toàn review và quyết định D-09 để khóa |
+| S1-04 | **Chặn** — cần Toàn/chủ dự án cung cấp PDF có quyền sử dụng |
+| S1-07 | **Chặn** bởi S1-04 |
+
 ### Sprint 2 (tuần 3–4) — Độ tin cậy hàng đợi và GPU/CPU
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
-| S2-01 | Chống enqueue kép recognize/retry bằng row lock/idempotency | Khang | Toàn | 2 | Test: 2 request đồng thời chỉ tạo 1 job hợp lệ |
-| S2-02 | Redis không nhận job → khôi phục state hoặc trả lỗi retryable | Khang | Toàn | 1.5 | Test API với Redis giả lỗi |
+| S2-01 | Chống enqueue kép recognize/retry: code đã có `with_for_update` và kiểm tra status; còn thiếu test đồng thời và kiểm tra idempotency phía worker | Khang | Toàn | 2 | Test: 2 request đồng thời chỉ tạo 1 job hợp lệ |
+| S2-02 | Redis không nhận job: code đã hoàn tác status và trả 503; còn thiếu test với Redis giả lỗi, và nhánh upload/retry cùng cách xử lý | Khang | Toàn | 1.5 | Test API với Redis giả lỗi |
 | S2-03 | Timeout/retry/failure visibility; phục hồi formula `ocr_queued` treo khi worker chết | Khang | Toàn | 2 | Test worker restart; không còn state mơ hồ |
 | S2-04 | Kiểm Redis AOF/volume khi restart Redis/backend/worker | Khang | Toàn | 1 | Biên bản drill ghi trong SETUP |
 | S2-05 | Chọn cấu hình suy luận: ONNX CUDA, `MATH_DETECTOR_BACKEND=pytorch` trên CUDA, hoặc CPU fallback có giới hạn rõ | Khang | Toàn | 1.5 | Bảng latency/VRAM/RAM thật; cấu hình chốt trong Compose |
@@ -212,17 +221,40 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | Một người nghỉ/quá tải | Trễ gate | Mỗi task có reviewer biết ngữ cảnh; S6-08 là buffer | Cả hai |
 | Đổi contract muộn | Vỡ UI/test | Contract khóa ở G1; đổi phải cập nhật SRS cùng PR | Cả hai |
 
-## 7. Ma trận truy vết (khung, hoàn thiện ở S1-03 và S6-03)
+## 7. Ma trận truy vết
 
-| Yêu cầu | Task | Test dự kiến |
-|---|---|---|
-| FR0 | S3-04, S3-07 | `tests/api/test_auth_api.py`, `tests/unit/test_security.py`, UI auth |
-| FR1 | S2-01…S2-07, S3-01…S3-03 | `tests/worker/`, `tests/api/`, pipeline PDF nhiều trang/rỗng/hỏng |
-| FR2 | S4-01, S4-02, S4-03, S4-06, S4-09, S4-10 | Test frontend editor + overlay, browser keyboard/mobile |
-| FR3 | S4-04 | API submit + UI reload raw/final |
-| FR4 | S3-03, S4-05 | `tests/api/test_document_history.py`, UI lịch sử |
-| NFR | S1-02, S1-06, S2-04, S2-05, S5-01…S5-05 | Migration drill, provider log, restart drill, báo cáo đánh giá |
+Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test backend, chưa có test frontend/worker). "Khoảng trống" là chỗ chưa có test; task đóng khoảng trống nằm ở cột cuối.
 
+| ID | Code chính | Test hiện có | Khoảng trống → task |
+|---|---|---|---|
+| FR0-01 | `api/auth.py`, `schemas/auth.py` | `test_register_login_logout_and_password_hash` (trùng username → 409), `test_security.py` (kiểm tra credentials) | — |
+| FR0-02 | `core/security.py` | Cùng test trên: hash bắt đầu `$argon2`, response không có `password_hash` | Không rò hash/mật khẩu trong log: chưa kiểm → S3-04 |
+| FR0-03 | `core/security.py`, `api/auth.py` | `test_access_token_has_user_subject_and_expiration`; cookie `HttpOnly` được kiểm | `SameSite=Lax`, token hết hạn/giả mạo bị từ chối chưa có test → S3-04 |
+| FR0-04 | `api/auth.py` | Logout rồi `/me` trả 401 | — |
+| FR0-05 | `api/documents.py` (`_get_owned_document`) | `test_document_is_visible_only_to_owner`, `test_other_users_document_is_404_everywhere`, `test_orphan_document_is_not_visible` | — |
+| FR1-01 | `api/documents.py` upload | `test_upload_records_size_and_returns_document_id` | Chỉ-PDF/giới hạn chưa có test → S3-01, S3-02 |
+| FR1-02 | `core/queue.py`, upload/recognize | Upload dùng queue giả | Enqueue kép, Redis lỗi → S2-01, S2-02 |
+| FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | Chưa có | Worker/pipeline test, PDF nhiều trang/rỗng/hỏng → S2-07, S3-02 |
+| FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | Chưa có | Bounds/crop khớp bbox → S4-07 |
+| FR1-05 | `POST/PATCH/DELETE …/formulas` | Chưa có | S4-07 |
+| FR1-06 | `services/formula_ocr.py` | Chưa có | OCR exception/retry → S2-03, S4-07 |
+| FR2-01 | `frontend/src/App.jsx` | Chưa có test frontend | S4-01, S4-02 |
+| FR2-02 | `App.jsx` (`FormulaEditor`) | Chưa có | S4-02, S4-10 |
+| FR2-03 | `App.jsx` (overlay pointer/keyboard) | Chưa có | S4-03, S4-06 |
+| FR3-01 | `POST …/formulas/{id}/submit` | Chưa có (chỉ test export dùng dữ liệu `submitted` dựng sẵn) | S4-04, S4-07 |
+| FR3-02 | Cùng endpoint | Chưa có | S4-04 (bằng chứng `latex_raw` không đổi) |
+| FR3-03 | `GET …/formulas` | Chưa có | S4-04 |
+| FR4-01 | `GET /documents`, `GET/DELETE /documents/{id}` | `test_list_*`, `test_get_document_detail_and_log`, `test_delete_removes_rows_and_files`, `test_delete_succeeds_when_files_already_missing` | UI lịch sử → S4-05 |
+| FR4-02 | `GET …/source` | `test_download_source_pdf`, `…_missing_file_is_404` | — |
+| FR4-03 | `GET …/export` | `test_export_contains_only_submitted_latex_final`, `test_export_without_submitted_formula_is_409` | — |
+| FR4-04 | `BUSY_STATUSES` trong `documents.py` | `test_delete_is_blocked_while_processing` | — |
+| NFR-01 | models + Compose | Gián tiếp qua test API | — |
+| NFR-02 | `alembic/versions/*` | Drill thủ công S1-02 (ghi trong DATABASE.md) | Tự động hóa không bắt buộc |
+| NFR-03 | `services/formula_regions.py`, Compose | Kiểm worker S1-06: đang CPU | Chốt cấu hình → S2-05 |
+| NFR-04 | — | Chưa có dữ liệu | S1-04, S5-01…S5-05 |
+| NFR-05 | `_log_action` | Chưa kiểm | S3-04 |
+| NFR-06 | `core/queue.py`, worker | Chưa có | S2-01…S2-04 |
+| NFR-07 | upload (chỉ có `.pdf` + 100 MB) | Chưa có test | S3-01, S3-02 |
 ## 8. Definition of Done của đồ án (điểm dừng)
 
 Đồ án hoàn thành khi **tất cả** điều kiện sau đúng:
