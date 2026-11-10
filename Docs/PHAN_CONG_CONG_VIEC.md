@@ -126,8 +126,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 |---|---|
 | S1-01, S1-02, S1-03, S1-04, S1-06, S1-07 | Xong |
 | S1-05 | Xong phần tài liệu: bảng API trong ARCHITECTURE khớp OpenAPI; chờ Toàn review và quyết định D-09 để khóa |
-| S1-04 (ghi chú) | Đã có 3 PDF đề thi bang Victoria, tài liệu công khai, chủ dự án xác nhận được dùng 2026-11-10 ([DATASET](DATASET.md)); còn thiếu bản scan và bố cục nhiều cột cho S5-01 |
-| S1-07 | Xong 2026-11-10 với DS-2022 (17 trang, CPU): sau khi ghim `rapidocr>=3.9,<3.10` (bản 3.10.0 làm `pix2text` không import được), detect ra 130 vùng trong ~35 s, OCR 130 vùng trong ~46 s, Submit giữ nguyên `latex_raw`, export `.tex` đúng. Chỉ là smoke test chức năng, chưa phải đo độ chính xác. Dữ liệu tạm đã xóa, DB về 1 user/15 document/1669 công thức |
+| S1-04 (ghi chú) | Dữ liệu là các PDF đã upload vào ứng dụng, chủ dự án xác nhận được dùng 2026-11-10 ([DATASET](DATASET.md)); cần ghi `document_id` bản chuẩn cho từng file ở S5-01 |
+| S1-07 | Xong 2026-11-10 với `2022-MathMethods1.pdf` (17 trang, CPU; file này không thuộc dữ liệu đánh giá): sau khi ghim `rapidocr>=3.9,<3.10` (bản 3.10.0 làm `pix2text` không import được), detect ra 130 vùng trong ~35 s, OCR 130 vùng trong ~46 s, Submit giữ nguyên `latex_raw`, export `.tex` đúng. Chỉ là smoke test chức năng, chưa phải đo độ chính xác. Dữ liệu tạm đã xóa, DB về 1 user/15 document/1669 công thức |
 
 ### Sprint 2 (tuần 3–4) — Độ tin cậy hàng đợi và GPU/CPU
 
@@ -156,7 +156,7 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 |---|---|---|---|---|---|
 | S3-01 | Giới hạn upload: bytes (đã có 100 MB), số trang, pixel, timeout xử lý | Khang | Toàn | 1.5 | Lỗi thân thiện, có test |
 | S3-02 | Validate nội dung PDF: mã hóa, hỏng, tên file/path abuse | Khang | Toàn | 1.5 | Test fixture synthetic |
-| S3-03 | Retention/cleanup: source, pages, crops, job lỗi, file mồ côi | Khang | Toàn | 2 | Chính sách ghi trong DATABASE; test không xóa dữ liệu hợp lệ |
+| S3-03 | Retention/cleanup: source, pages, crops, job lỗi, file mồ côi (không được xóa các document dữ liệu trong [DATASET](DATASET.md), kể cả 14 document chưa có owner) | Khang | Toàn | 2 | Chính sách ghi trong DATABASE; test không xóa dữ liệu hợp lệ |
 | S3-04 | Hardening auth: rate limit đăng nhập (**D-03**), policy đổi `AUTH_SECRET`, cookie Secure/CSRF dưới HTTPS, hết phiên | Khang | Toàn | 2 | Test + ghi trong ARCHITECTURE |
 | S3-05 | Quy trình chuyển owner cho document cũ `uploaded_by IS NULL` (**D-07**) | Khang | Toàn | 0.5 | Quy tắc ghi trong DATABASE |
 | S3-06 | Dọn code backend: tách `api/documents.py` (562 dòng) thành router mỏng + service; không đổi contract | Khang | Toàn | 2 | Test hiện có vẫn pass; diff chỉ di chuyển/tách |
@@ -258,7 +258,7 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | NFR-01 | models + Compose | Gián tiếp qua test API | — |
 | NFR-02 | `alembic/versions/*` | Drill thủ công S1-02 (ghi trong DATABASE.md) | Tự động hóa không bắt buộc |
 | NFR-03 | `services/formula_regions.py`, Compose | Kiểm worker S1-06: đang CPU | Chốt cấu hình → S2-05 |
-| NFR-04 | — | Chưa có dữ liệu | S1-04, S5-01…S5-05 |
+| NFR-04 | — | Có dữ liệu ([DATASET](DATASET.md)), chưa có manifest/đáp án chuẩn | S5-01…S5-05 |
 | NFR-05 | `_log_action` | Chưa kiểm | S3-04 |
 | NFR-06 | `core/queue.py`, worker | Phần API: `test_ocr_queue*.py` | Worker restart, job treo, timeout → S2-03, S2-04, S2-07 |
 | NFR-07 | upload (chỉ có `.pdf` + 100 MB) | Chưa có test | S3-01, S3-02 |
