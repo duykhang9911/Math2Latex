@@ -46,7 +46,7 @@ Redis dùng AOF và volume. `docker compose down` giữ data; `docker compose do
 
 Uploads ở `backend/uploads/<document_uuid>/`. Model cache hiện nằm trong filesystem container; cần cân nhắc volume cache riêng để tránh tải lại sau recreate. Production nhiều host cần shared object storage.
 
-Compose hiện có local default credentials; không dùng ở môi trường chia sẻ/production. Chưa có authentication hoàn chỉnh, không expose API công khai.
+Compose hiện có local default database credentials; không dùng ở môi trường chia sẻ/production. Đăng ký/đăng nhập username và mật khẩu đã có; mỗi document mới được gắn với user đăng nhập. Email verification, password reset, roles và login rate limiting chưa triển khai; không expose app công khai trước khi giải quyết các yêu cầu này.
 
 ## Troubleshooting
 

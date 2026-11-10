@@ -6,7 +6,7 @@
 Math2Latex/
 |-- AGENTS.md
 |-- README.md
-|-- doc.md                         # hướng dẫn onboarding dài hiện có
+|-- Docs/HUONG_DAN_HOC_DU_AN.md    # hướng dẫn onboarding dài
 |-- docker-compose.yml
 |-- Docs/                          # tài liệu nghiệp vụ/kỹ thuật/nhóm
 |   |-- README.md

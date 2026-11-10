@@ -11,6 +11,16 @@ Upload PDF -> render trang -> detect vùng -> người dùng rà vùng
 
 `latex_raw` giữ kết quả OCR ban đầu; `latex_final` là nội dung người dùng gửi.
 
+## Tài khoản và database
+
+Người dùng đăng ký/đăng nhập bằng username và mật khẩu; backend chỉ lưu Argon2 password hash. Mỗi PDF mới gắn với tài khoản upload, và API chỉ cho chủ sở hữu truy cập tài liệu đó.
+
+- PostgreSQL lưu user, owner, trạng thái document/formula, bbox, `latex_raw` và `latex_final` để tải lại sau khi refresh.
+- Redis/RQ chỉ điều phối render/detect/OCR jobs; không phải nơi lưu kết quả chính.
+- `backend/uploads/<document_id>/` lưu PDF, ảnh trang và crop; database chỉ lưu metadata/đường dẫn.
+
+Giải thích chi tiết: [Docs/DATABASE.md](Docs/DATABASE.md). Auth hiện chưa có email verification, password reset, roles hoặc rate limiting.
+
 ## Công nghệ
 
 - Frontend: React, Vite, MathLive
@@ -44,6 +54,6 @@ Hướng dẫn chi tiết: [Docs/SETUP.md](Docs/SETUP.md). Hướng dẫn học 
 - [Docs/SRS.md](Docs/SRS.md): yêu cầu và tiêu chí nghiệm thu
 - [Docs/ARCHITECTURE.md](Docs/ARCHITECTURE.md): kiến trúc và luồng dữ liệu
 - [Docs/PROJECT_STRUCTURE_GUIDE.md](Docs/PROJECT_STRUCTURE_GUIDE.md): vị trí source/test
-- [Docs/PHAN_CONG_CONG_VIEC.md](Docs/PHAN_CONG_CONG_VIEC.md): backlog và phân công đề xuất
+- [Docs/PHAN_CONG_CONG_VIEC.md](Docs/PHAN_CONG_CONG_VIEC.md): kế hoạch đồ án 12 tuần, phân công, gate và Definition of Done
 
 OCR có thể nhận sai; kết quả cần người dùng rà trước khi Submit. Pipeline đã xác minh cho PDF; upload ảnh riêng chưa được nghiệm thu.

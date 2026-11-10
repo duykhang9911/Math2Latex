@@ -109,12 +109,19 @@ Nếu chỉ ghi tên file vào ổ đĩa mà không có database, backend sẽ k
 
 | Bảng | Vai trò dễ hiểu | Một số trường chính |
 |---|---|---|
-| `documents` | Một hàng cho mỗi tài liệu được upload | `id`, `filename`, `status`, `uploaded_by`, `created_at` |
+| `documents` | Một hàng cho mỗi tài liệu được upload và owner của nó | `id`, `filename`, `status`, `uploaded_by`, `file_size_bytes`, `page_count`, `created_at` |
 | `formula_entries` | Một hàng cho mỗi vùng/công thức tìm thấy | `id`, `document_id`, `page_number`, `image_path`, bbox, `confidence`, `latex_raw`, `latex_final`, `ocr_backend`, `status` |
-| `users` | Khung lưu tài khoản cho chức năng người dùng sau này | `id`, `username`, `password_hash`, `created_at` |
-| `logs` | Khung ghi sự kiện hoặc chi tiết kỹ thuật | `action`, `ref_id`, `detail` dạng JSONB, `created_at` |
+| `users` | Tài khoản đăng ký/đăng nhập | `id`, `username` unique, `password_hash` Argon2, `created_at` |
+| `logs` | Một phần sự kiện upload/lịch sử/OCR | `action`, `ref_id`, `user_id`, `detail` dạng JSONB, `created_at` |
 
-Hiện luồng đăng nhập và ghi log chưa được tích hợp đầy đủ vào API. `users` và `logs` đã có model/migration nhưng chưa nên hiểu là ứng dụng đã có xác thực người dùng hoặc audit log hoàn chỉnh.
+Ứng dụng hiện hỗ trợ đăng ký, đăng nhập, xem session và đăng xuất. Backend lưu password hash Argon2; JWT access token nằm trong HttpOnly cookie. Các document mới lưu `uploaded_by` và API chỉ cho owner truy cập. Chưa có role/admin, reset password, xác minh email hoặc audit log đầy đủ.
+
+### Database dùng để làm gì trong workflow?
+
+- PostgreSQL giữ tài khoản, owner, trạng thái document/formula, bbox, confidence, `latex_raw` và `latex_final`; nhờ đó dữ liệu còn sau khi refresh hoặc restart ứng dụng.
+- Redis/RQ giữ job đang chờ/thất bại để worker xử lý; Redis không phải nguồn dữ liệu cuối của công thức.
+- Filesystem `backend/uploads/<document_uuid>/` giữ PDF, ảnh trang và crop; database chỉ lưu metadata/path, không nhét bytes ảnh vào bảng.
+- Foreign key và unique constraint bảo vệ quan hệ user-document và username; API vẫn phải kiểm tra owner cho mỗi request.
 
 ### Quan hệ tài liệu và công thức
 

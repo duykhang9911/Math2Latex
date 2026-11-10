@@ -19,6 +19,18 @@
 - Xóa một mục lịch sử xóa `formula_entries`, row `documents` rồi thư mục `UPLOAD_DIR/{id}`; không cho xóa khi status là `processing_pages`, `detecting_formulas`, `ocr_processing`.
 - Action log của lịch sử: `history_list`, `history_open`, `history_delete`, `download_source`, `export_latex`; kèm `logs.user_id`.
 
+## Database được dùng để làm gì trong dự án?
+
+PostgreSQL là nguồn lưu trữ chính thức cho thông tin cần truy vấn và giữ lại giữa các phiên chạy:
+
+1. `users` giữ username và password hash Argon2 để biết ai đang đăng nhập; không lưu mật khẩu rõ.
+2. `documents` ghi tên, owner và trạng thái PDF để người dùng xem lại lịch sử, đồng thời giới hạn truy cập theo tài khoản.
+3. `formula_entries` ghi trang, bbox, confidence, crop path, OCR gốc `latex_raw`, bản người dùng Submit `latex_final` và trạng thái từng công thức.
+4. Foreign key/unique constraint bảo vệ quan hệ và chống username trùng; transaction giúp không để trạng thái nửa chừng khi cập nhật lỗi.
+5. Khi mở lại trình duyệt, frontend lấy document/formula từ PostgreSQL qua API thay vì dựa vào state trong RAM.
+
+PDF, page images và formula crops nằm trong `backend/uploads/`; Redis/RQ chỉ điều phối job nền. PostgreSQL không chứa ảnh/PDF và Redis không thay thế dữ liệu canonical trong PostgreSQL.
+
 ## Migration
 
 - `1c603257d451_create_initial_tables.py`: tạo bảng ban đầu.
