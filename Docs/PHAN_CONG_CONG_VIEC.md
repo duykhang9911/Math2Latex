@@ -143,6 +143,13 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 **Gate G2:** queue an toàn khi lặp/restart; GPU/CPU chốt bằng bằng chứng; **D-01 đã được quyết định**.
 
+**Tiến độ Sprint 2 (cập nhật 2026-11-10):**
+
+| Task | Trạng thái |
+|---|---|
+| S2-01 | Xong phần test: `tests/api/test_ocr_queue.py` (gọi recognize/retry lần hai → 409, chỉ 1 job) và `tests/api/test_ocr_queue_concurrency.py` trên PostgreSQL thật (row lock chặn request thứ hai; bỏ `with_for_update` thì test này fail). Còn lại: idempotency phía worker khi 2 job cùng chạy một document |
+| S2-02 | Xong cho upload/recognize/retry: Redis lỗi → 503, state được hoàn tác, gọi lại được. Còn lại: nhánh enqueue thành công nhưng `_log_action` lỗi cũng bị hoàn tác state trong khi job đã vào queue |
+
 ### Sprint 3 (tuần 5–6) — Bảo mật, giới hạn và vòng đời dữ liệu
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
@@ -233,7 +240,7 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | FR0-04 | `api/auth.py` | Logout rồi `/me` trả 401 | — |
 | FR0-05 | `api/documents.py` (`_get_owned_document`) | `test_document_is_visible_only_to_owner`, `test_other_users_document_is_404_everywhere`, `test_orphan_document_is_not_visible` | — |
 | FR1-01 | `api/documents.py` upload | `test_upload_records_size_and_returns_document_id` | Chỉ-PDF/giới hạn chưa có test → S3-01, S3-02 |
-| FR1-02 | `core/queue.py`, upload/recognize | Upload dùng queue giả | Enqueue kép, Redis lỗi → S2-01, S2-02 |
+| FR1-02 | `core/queue.py`, upload/recognize | `tests/api/test_ocr_queue.py` (enqueue 1 lần, Redis lỗi → 503 và hoàn tác), `test_ocr_queue_concurrency.py` (PostgreSQL) | Idempotency phía worker → S2-03 |
 | FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | Chưa có | Worker/pipeline test, PDF nhiều trang/rỗng/hỏng → S2-07, S3-02 |
 | FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | Chưa có | Bounds/crop khớp bbox → S4-07 |
 | FR1-05 | `POST/PATCH/DELETE …/formulas` | Chưa có | S4-07 |
@@ -253,7 +260,7 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | NFR-03 | `services/formula_regions.py`, Compose | Kiểm worker S1-06: đang CPU | Chốt cấu hình → S2-05 |
 | NFR-04 | — | Chưa có dữ liệu | S1-04, S5-01…S5-05 |
 | NFR-05 | `_log_action` | Chưa kiểm | S3-04 |
-| NFR-06 | `core/queue.py`, worker | Chưa có | S2-01…S2-04 |
+| NFR-06 | `core/queue.py`, worker | Phần API: `test_ocr_queue*.py` | Worker restart, job treo, timeout → S2-03, S2-04, S2-07 |
 | NFR-07 | upload (chỉ có `.pdf` + 100 MB) | Chưa có test | S3-01, S3-02 |
 ## 8. Definition of Done của đồ án (điểm dừng)
 
