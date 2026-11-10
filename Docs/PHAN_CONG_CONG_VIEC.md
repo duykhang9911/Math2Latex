@@ -268,16 +268,16 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | FR0-05 | `api/documents.py` (`_get_owned_document`) | `test_document_is_visible_only_to_owner`, `test_other_users_document_is_404_everywhere`, `test_orphan_document_is_not_visible` | — |
 | FR1-01 | `api/documents.py` upload | `test_upload_records_size_and_returns_document_id`, `tests/api/test_upload_validation.py` | — |
 | FR1-02 | `core/queue.py`, upload/recognize | `tests/api/test_ocr_queue.py`, `test_ocr_queue_concurrency.py` (PostgreSQL), `tests/worker/` | — |
-| FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | `tests/worker/` (PDF hỏng → `processing_failed`, job trùng no-op); chạy thật 17 trang (S1-07) | Detect với model thật trong test tự động, PDF mã hóa/rỗng → S3-02 |
-| FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | Chưa có | Bounds/crop khớp bbox → S4-07 |
-| FR1-05 | `POST/PATCH/DELETE …/formulas` | Chưa có | S4-07 |
-| FR1-06 | `services/formula_ocr.py` | `tests/worker/` (fake model: thành công, lỗi từng công thức, lỗi nạp model) | Test API sửa/xóa vùng → S4-07 |
+| FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | `tests/worker/test_pdf_pipeline.py` (detector giả: trang đánh số từ 1, trang không có công thức, detector lỗi → `processing_failed`), `test_ocr_and_pdf_jobs.py`; chạy thật 17 trang (S1-07) | Test tự động với model MFD thật (chỉ chạy tay) |
+| FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | `test_pdf_pipeline.py` (bbox nằm trong ảnh, crop đúng kích thước bbox, box ngoài trang bị bỏ), `tests/api/test_formula_regions.py` (crop khớp bbox) | — |
+| FR1-05 | `api/formulas.py` | `tests/api/test_formula_regions.py` (tạo/sửa/xóa, bounds hợp lệ/ngoài trang/âm, chỉ vùng `proposed`, đúng owner, crop được tạo lại/xóa) | UI pointer/keyboard → S4-03 (Toàn) |
+| FR1-06 | `services/formula_ocr.py` | `tests/worker/` (fake model: thành công, lỗi từng công thức, lỗi nạp model, không đụng công thức không `ocr_queued`) | — |
 | FR2-01 | `frontend/src/App.jsx` | Chưa có test frontend | S4-01, S4-02 |
 | FR2-02 | `App.jsx` (`FormulaEditor`) | Chưa có | S4-02, S4-10 |
 | FR2-03 | `App.jsx` (overlay pointer/keyboard) | Chưa có | S4-03, S4-06 |
-| FR3-01 | `POST …/formulas/{id}/submit` | Chưa có (chỉ test export dùng dữ liệu `submitted` dựng sẵn) | S4-04, S4-07 |
-| FR3-02 | Cùng endpoint | Chưa có | S4-04 (bằng chứng `latex_raw` không đổi) |
-| FR3-03 | `GET …/formulas` | Chưa có | S4-04 |
+| FR3-01 | `POST …/formulas/{id}/submit` | `tests/api/test_formula_submit.py` (ghi `latex_final`, chưa OCR → 409, giới hạn độ dài, đúng owner, ghi log) | UI → S4-04 (Toàn) |
+| FR3-02 | Cùng endpoint | `test_formula_submit.py` (`latex_raw` không đổi kể cả resubmit; bỏ dòng bảo vệ thì 3 test fail) | — |
+| FR3-03 | `GET …/formulas` | `test_submit_is_logged_and_persists_across_reload` | UI reload → S4-04 (Toàn) |
 | FR4-01 | `GET /documents`, `GET/DELETE /documents/{id}` | `test_list_*`, `test_get_document_detail_and_log`, `test_delete_removes_rows_and_files`, `test_delete_succeeds_when_files_already_missing` | UI lịch sử → S4-05 |
 | FR4-02 | `GET …/source` | `test_download_source_pdf`, `…_missing_file_is_404` | — |
 | FR4-03 | `GET …/export` | `test_export_contains_only_submitted_latex_final`, `test_export_without_submitted_formula_is_409` | — |
