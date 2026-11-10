@@ -20,6 +20,7 @@ Math2Latex/
 |   |-- CONTRIBUTING.md
 |   |-- GIT_WORKFLOW.md
 |   |-- TEAM.md
+|   |-- DATASET.md
 |   |-- PHAN_CONG_CONG_VIEC.md
 |   `-- modules/
 |       |-- BACKEND_GUIDE.md
@@ -41,14 +42,14 @@ Không chia source thành các module nghiệp vụ giả khi ứng dụng hiệ
 
 | Nhu cầu | Vị trí |
 |---|---|
-| FastAPI router/HTTP validation | `backend/app/api/` |
-| DB session, queue, password/token security | `backend/app/core/` |
+| FastAPI router/HTTP validation | `backend/app/api/` (`documents.py`, `formulas.py`, `auth.py`) |
+| DB session, queue, đường dẫn file, giới hạn, password/token, rate limit | `backend/app/core/` |
 | SQLAlchemy tables | `backend/app/models/` |
 | Request/response Pydantic | `backend/app/schemas/` |
 | Auth endpoints | `backend/app/api/auth.py` |
 | Render/detect/crop/OCR use case | `backend/app/services/` |
 | Schema change | `backend/alembic/versions/`, revision mới |
-| Unit/API/worker tests đề xuất | `backend/tests/unit/`, `api/`, `worker/` |
+| Unit/API/worker tests | `backend/tests/unit/`, `api/`, `worker/` |
 
 API không chạy inference trong request handler. Router validate/commit/enqueue; worker nhận callable và tham số serialize được.
 
@@ -70,4 +71,4 @@ API không chạy inference trong request handler. Router validate/commit/enqueu
 
 ## Test layout đề xuất
 
-Hiện chưa có suite test chính thức. Khi bổ sung, đặt unit test gần logic; integration test cho API/DB/Redis; evaluation manifest cho PDF có quyền dùng. Không ghi các thư mục đề xuất thành tests đã tồn tại.
+Backend có suite pytest trong `backend/tests/` (xem `backend/tests/README.md`). Frontend chưa có suite test chính thức. Đặt unit test gần logic; integration test cho API/DB/Redis; evaluation manifest cho PDF có quyền dùng (xem [DATASET](DATASET.md)).

@@ -103,8 +103,25 @@ Số liệu là một lần đo trên một máy, không phải benchmark; dùng
 
 ## Authentication/security boundary
 
-- Access token JWT ngắn hạn nằm trong cookie HttpOnly `math2latex_access`, không expose cho JavaScript.
-- `AUTH_SECRET` phải là secret random riêng khi deploy; giá trị mặc định trong Compose chỉ dùng local.
+- Access token JWT ngắn hạn (60 phút) nằm trong cookie HttpOnly `math2latex_access`, `SameSite=Lax`, `Path=/api`; không expose cho JavaScript.
+- `AUTH_SECRET` phải là secret random riêng khi deploy (≥ 32 ký tự); giá trị mặc định trong Compose chỉ dùng local. Đổi `AUTH_SECRET` làm mọi phiên đang đăng nhập hết hiệu lực (người dùng đăng nhập lại); không hỗ trợ hai secret song song. Secret ngắn hơn 32 ký tự thì không cấp và không chấp nhận token.
 - Cookie `Secure` bật qua `AUTH_COOKIE_SECURE=true` khi chạy HTTPS.
-- CORS dùng allowlist local origins và credentials; production phải thay origin.
-- Hiện chỉ có username/password và owner scoping; chưa có role, reset password, email verification, refresh-token rotation hoặc CSRF token riêng.
+- Đăng nhập sai: tối đa 5 lần cho mỗi (IP, username) và 30 lần cho mỗi IP trong 15 phút (`LOGIN_MAX_FAILURES`, `LOGIN_IP_MAX_FAILURES`, `LOGIN_WINDOW_SECONDS`); vượt thì 429 kèm `Retry-After`; đăng nhập đúng xóa bộ đếm của cặp (IP, username). Bộ đếm nằm trong Redis; Redis lỗi thì cho qua và ghi log (không khóa người dùng vì Redis chết). IP lấy từ kết nối TCP: sau reverse proxy cần cấu hình proxy headers, nếu không mọi người dùng chung một IP.
+- CSRF: `SameSite=Lax` chặn cookie trong request ghi cross-site; thêm một lớp là middleware từ chối (403) request `POST/PUT/PATCH/DELETE` có header `Origin` không thuộc allowlist. Request không có `Origin` (curl, script) vẫn đi qua vì không phải CSRF từ trình duyệt. Chưa có token CSRF riêng.
+- CORS và kiểm tra Origin dùng chung allowlist `CORS_ORIGINS` (phân tách bằng dấu phẩy; mặc định `http://localhost:5173,http://127.0.0.1:5173`); production phải đặt origin thật.
+- Không ghi mật khẩu hoặc token vào log (có test); hash Argon2 không xuất hiện trong response.
+- Hiện chỉ có username/password và owner scoping; chưa có role, reset password, email verification hoặc refresh-token rotation.
+
+## Giới hạn upload và xử lý
+
+Giá trị mặc định, đổi bằng biến môi trường (xem `backend/app/core/limits.py`); `docker-compose.yml` truyền các biến này từ môi trường/`.env` của host cho backend (và `MAX_PDF_PAGES`, `MAX_PAGE_PIXELS` cho worker), sau đó cần `docker compose up -d` để tạo lại container:
+
+| Giới hạn | Mặc định | Biến |
+|---|---|---|
+| Dung lượng file | 100 MB (413) | `MAX_UPLOAD_MB` |
+| Số trang PDF | 200 (422) | `MAX_PDF_PAGES` |
+| Pixel mỗi trang khi render 150 dpi | 25 triệu, A4 ≈ 2,2 triệu (422) | `MAX_PAGE_PIXELS` |
+| Timeout job render/detect | 1800 s | `PDF_JOB_TIMEOUT_SECONDS` |
+| Timeout job OCR | 3600 s | `OCR_JOB_TIMEOUT_SECONDS` |
+
+Các giá trị trên do nhóm chọn, có dư nhiều lần so với số đo CPU ở mục Cấu hình suy luận, chưa phải yêu cầu từ giảng viên. Nội dung được kiểm tra bằng cách mở file: phải là PDF thật (ảnh đổi đuôi `.pdf`, file hỏng, file rỗng → 400), không cần mật khẩu (400), tên file chỉ giữ phần tên (bỏ thư mục, ký tự điều khiển, tối đa 255 ký tự); file luôn lưu ở `UPLOAD_DIR/<uuid>/source.pdf` nên tên do client gửi không quyết định đường dẫn. Upload bị từ chối không để lại thư mục hay dòng database. Worker kiểm tra lại cùng giới hạn trước khi render.

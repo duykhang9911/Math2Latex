@@ -172,6 +172,20 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 **Gate G3:** upload độc hại/hỏng bị từ chối có thông báo; cleanup an toàn; backend test suite pass.
 
+**Tiến độ Sprint 3 — phần của Khang (cập nhật 2026-11-10):**
+
+| Task | Trạng thái |
+|---|---|
+| S3-01 | Xong: giới hạn dung lượng 100 MB, 200 trang, 25 triệu pixel/trang, timeout job PDF 1800 s / OCR 3600 s (đổi bằng biến môi trường; **giá trị do nhóm chọn, cần xác nhận**). Bảng ở [ARCHITECTURE](ARCHITECTURE.md) |
+| S3-02 | Xong: phải là PDF thật (kể cả ảnh đổi đuôi `.pdf` — lỗ hổng phát hiện nhờ test), không cần mật khẩu, tên file sạch, upload bị từ chối không để lại file/dòng database (trước đây vượt dung lượng để lại thư mục rồi). Đã kiểm 11 PDF thật trong `uploads/`: không bị từ chối nhầm |
+| S3-03 | Xong: `python -m app.services.retention` (dry-run mặc định); chính sách trong [DATABASE](DATABASE.md). Chạy dry-run trên dữ liệu thật: 0 thư mục mồ côi, các document dữ liệu không bị đụng tới |
+| S3-04 | Xong: giới hạn đăng nhập sai (Redis, 5 lần/15 phút cho mỗi IP+username, 429), kiểm tra Origin cho request ghi, `CORS_ORIGINS` cấu hình được, test token hết hạn/giả mạo/đổi secret, cờ cookie, không lộ bí mật trong log. Cách rate limit tự viết trên Redis (không thêm thư viện) theo mặc định của D-03. Còn lại: UX báo 429 và hết phiên ở UI (S3-07, Toàn) |
+| S3-05 | Xong phần tài liệu: quy trình SQL chuyển owner trong [DATABASE](DATABASE.md); chưa thực hiện vì D-07 chưa quyết định |
+| S3-06 | Xong: `api/documents.py` 662 → 253 dòng; tách `api/formulas.py`, `api/deps.py` và các service (`ocr_queue`, `document_queries`, `latex_export`, `action_log`, `core/storage`). Contract không đổi (21 route khớp OpenAPI), 141 test pass, chạy lại end-to-end thật |
+| S3-09 | Xong: CHECK constraint thay vì enum (khác kế hoạch đã duyệt vì dễ mở rộng hơn), migration `c8d2e3f4a5b6` đã chạy thử trên bản khôi phục dữ liệu thật và đã áp dụng vào DB dev |
+| S3-07, S3-08 | Việc của Toàn, chưa làm |
+
+**Gate G3:** upload hỏng/mã hóa/quá giới hạn bị từ chối có thông báo: đạt; cleanup an toàn: đạt; backend test suite pass: đạt (141 test, gồm PostgreSQL và Redis thật). Còn chờ S3-07, S3-08 của Toàn.
 ### Sprint 4 (tuần 7–8) — Hoàn thiện giao diện và kiểm thử → **Feature freeze**
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
@@ -241,11 +255,11 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | ID | Code chính | Test hiện có | Khoảng trống → task |
 |---|---|---|---|
 | FR0-01 | `api/auth.py`, `schemas/auth.py` | `test_register_login_logout_and_password_hash` (trùng username → 409), `test_security.py` (kiểm tra credentials) | — |
-| FR0-02 | `core/security.py` | Cùng test trên: hash bắt đầu `$argon2`, response không có `password_hash` | Không rò hash/mật khẩu trong log: chưa kiểm → S3-04 |
-| FR0-03 | `core/security.py`, `api/auth.py` | `test_access_token_has_user_subject_and_expiration`; cookie `HttpOnly` được kiểm | `SameSite=Lax`, token hết hạn/giả mạo bị từ chối chưa có test → S3-04 |
+| FR0-02 | `core/security.py` | Cùng test trên: hash bắt đầu `$argon2`, response không có `password_hash`; `test_passwords_and_tokens_are_never_logged` | — |
+| FR0-03 | `core/security.py`, `api/auth.py` | `tests/api/test_auth_hardening.py` (cờ cookie, token hết hạn/giả mạo/alg none/đổi secret, giới hạn đăng nhập, Origin), `test_access_token_has_user_subject_and_expiration` | — |
 | FR0-04 | `api/auth.py` | Logout rồi `/me` trả 401 | — |
 | FR0-05 | `api/documents.py` (`_get_owned_document`) | `test_document_is_visible_only_to_owner`, `test_other_users_document_is_404_everywhere`, `test_orphan_document_is_not_visible` | — |
-| FR1-01 | `api/documents.py` upload | `test_upload_records_size_and_returns_document_id` | Chỉ-PDF/giới hạn chưa có test → S3-01, S3-02 |
+| FR1-01 | `api/documents.py` upload | `test_upload_records_size_and_returns_document_id`, `tests/api/test_upload_validation.py` | — |
 | FR1-02 | `core/queue.py`, upload/recognize | `tests/api/test_ocr_queue.py`, `test_ocr_queue_concurrency.py` (PostgreSQL), `tests/worker/` | — |
 | FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | `tests/worker/` (PDF hỏng → `processing_failed`, job trùng no-op); chạy thật 17 trang (S1-07) | Detect với model thật trong test tự động, PDF mã hóa/rỗng → S3-02 |
 | FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | Chưa có | Bounds/crop khớp bbox → S4-07 |
@@ -265,9 +279,9 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | NFR-02 | `alembic/versions/*` | Drill thủ công S1-02 (ghi trong DATABASE.md) | Tự động hóa không bắt buộc |
 | NFR-03 | `services/formula_regions.py`, Compose | Kiểm worker S1-06: đang CPU | Chốt cấu hình → S2-05 |
 | NFR-04 | — | Có dữ liệu ([DATASET](DATASET.md)), chưa có manifest/đáp án chuẩn | S5-01…S5-05 |
-| NFR-05 | `_log_action` | Chưa kiểm | S3-04 |
+| NFR-05 | `services/action_log.py`, `core/security.py` | `test_passwords_and_tokens_are_never_logged` | — |
 | NFR-06 | `core/queue.py`, `services/formula_ocr.py`, `services/pdf_pages.py` | `test_ocr_queue*.py`, `tests/worker/`; drill restart worker/Redis (ARCHITECTURE) | Mất dữ liệu Redis, job quá hạn trên UI |
-| NFR-07 | upload (chỉ có `.pdf` + 100 MB) | Chưa có test | S3-01, S3-02 |
+| NFR-07 | `core/limits.py`, `services/upload_validation.py` | `tests/api/test_upload_validation.py`, `tests/unit/test_sanitize_filename.py`, `tests/worker/` (job từ chối file quá giới hạn) | — |
 ## 8. Definition of Done của đồ án (điểm dừng)
 
 Đồ án hoàn thành khi **tất cả** điều kiện sau đúng:

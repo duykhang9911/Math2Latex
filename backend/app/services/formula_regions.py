@@ -15,6 +15,19 @@ def _load_detector():
     return MathFormulaDetector(device=device, model_backend=model_backend)
 
 
+class InvalidRegion(ValueError):
+    """Vùng công thức không hợp lệ (kích thước không dương hoặc vượt ngoài trang)."""
+
+
+def validate_bounds(page_path: Path, bounds: tuple[int, int, int, int]) -> None:
+    x_min, y_min, x_max, y_max = bounds
+    if x_max <= x_min or y_max <= y_min:
+        raise InvalidRegion("Vùng công thức phải có chiều rộng và cao dương")
+    with Image.open(page_path) as page_image:
+        image_width, image_height = page_image.size
+    if x_max > image_width or y_max > image_height:
+        raise InvalidRegion("Vùng công thức vượt ngoài kích thước trang")
+
 def save_formula_crop(page_image: Path, bounds: tuple[int, int, int, int], crop_path: Path) -> None:
     x_min, y_min, x_max, y_max = bounds
     crop_path.parent.mkdir(parents=True, exist_ok=True)

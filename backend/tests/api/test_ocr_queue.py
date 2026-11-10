@@ -2,10 +2,10 @@ from uuid import uuid4
 
 import pytest
 
-from app.api import documents as documents_api
+from app.core import queue as job_queue
 from app.core import limits
 from app.models import Document, FormulaEntry
-from app.services import formula_ocr, pdf_pages
+from app.services import action_log, formula_ocr, pdf_pages
 
 
 def _add_document(db, user, status="formula_proposals_ready"):
@@ -98,7 +98,7 @@ def test_recognize_restores_state_and_can_be_retried_when_redis_is_down(
     document = _add_document(db_session, user)
     _add_formulas(db_session, document, ["proposed", "proposed"])
     client = make_client(user)
-    monkeypatch.setattr(documents_api, "enqueue_job", _redis_down)
+    monkeypatch.setattr(job_queue, "enqueue_job", _redis_down)
 
     failed = client.post(f"/api/documents/{document.id}/formulas/recognize")
 
@@ -108,7 +108,7 @@ def test_recognize_restores_state_and_can_be_retried_when_redis_is_down(
     assert [entry["action"] for entry in logged_actions] == ["recognize_job_failed"]
 
     jobs = []
-    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args, **kwargs: jobs.append(args))
+    monkeypatch.setattr(job_queue, "enqueue_job", lambda *args, **kwargs: jobs.append(args))
     retried = client.post(f"/api/documents/{document.id}/formulas/recognize")
 
     assert retried.status_code == 202
@@ -148,7 +148,7 @@ def test_retry_restores_failed_state_when_redis_is_down(
     user = make_user("alice")
     document = _add_document(db_session, user, status="ocr_completed_with_errors")
     _add_formulas(db_session, document, ["ocr_failed", "ocr_complete"])
-    monkeypatch.setattr(documents_api, "enqueue_job", _redis_down)
+    monkeypatch.setattr(job_queue, "enqueue_job", _redis_down)
 
     response = make_client(user).post(f"/api/documents/{document.id}/formulas/retry")
 
@@ -160,7 +160,7 @@ def test_retry_restores_failed_state_when_redis_is_down(
 
 def test_upload_marks_document_failed_when_redis_is_down(make_client, make_user, db_session, monkeypatch, make_pdf):
     user = make_user("alice")
-    monkeypatch.setattr(documents_api, "enqueue_job", _redis_down)
+    monkeypatch.setattr(job_queue, "enqueue_job", _redis_down)
 
     response = make_client(user).post(
         "/api/documents/upload", files={"file": ("de thi.pdf", make_pdf(), "application/pdf")}
@@ -187,7 +187,7 @@ def test_jobs_are_enqueued_with_failure_callbacks_and_timeouts(make_client, make
     user = make_user("alice")
     client = make_client(user)
     calls = []
-    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args, **kwargs: calls.append((args, kwargs)))
+    monkeypatch.setattr(job_queue, "enqueue_job", lambda *args, **kwargs: calls.append((args, kwargs)))
 
     client.post("/api/documents/upload", files={"file": ("de thi.pdf", make_pdf(), "application/pdf")})
     recognizable = _add_document(db_session, user)
@@ -226,7 +226,7 @@ def test_log_failure_after_enqueue_does_not_roll_back_queued_state(
     def _broken_log(*_args, **_kwargs):
         raise RuntimeError("logs table unavailable")
 
-    monkeypatch.setattr(documents_api, "_log_action", _broken_log)
+    monkeypatch.setattr(action_log, "log_action", _broken_log)
 
     response = make_client(user).post(f"/api/documents/{document.id}/formulas/{endpoint}")
 

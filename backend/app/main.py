@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
 from app.api.documents import router as documents_router
+from app.api.formulas import router as formulas_router
 
 app = FastAPI(title="Math2Latex API")
 
@@ -42,6 +43,7 @@ async def reject_cross_origin_writes(request: Request, call_next):
 # include_router: "gắn" toàn bộ route đã định nghĩa trong api/documents.py
 # vào app chính - từ giờ POST /api/documents/upload sẽ hoạt động
 app.include_router(documents_router)
+app.include_router(formulas_router)
 app.include_router(auth_router)
 
 

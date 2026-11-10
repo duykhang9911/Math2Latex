@@ -28,6 +28,8 @@ docker compose exec backend sh -c "pip install -q -r requirements-dev.txt; TEST_
 docker compose exec db psql -U math2latex_user -d postgres -c "DROP DATABASE m2l_test;"
 ```
 
+Test Redis (`tests/unit/test_rate_limit.py`) tự bỏ qua nếu thiếu `TEST_REDIS_URL`; dùng database Redis riêng, ví dụ `TEST_REDIS_URL=redis://redis:6379/15` (test tự xóa khóa của mình).
+
 Image backend không cài pytest sẵn; lệnh `pip install` ở trên chỉ ảnh hưởng container đang chạy.
 
 Không lưu PDF/crop cá nhân hoặc model weights trong fixtures. Test GPU/real model nên opt-in, không làm unit test mặc định phụ thuộc CUDA hoặc Internet.

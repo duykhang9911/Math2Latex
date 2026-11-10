@@ -63,6 +63,13 @@ Bảng nằm ở **Servers → Math2Latex → Databases → math2latex → Schem
 
 Không có pgAdmin thì dùng `docker compose exec db psql -U math2latex_user -d math2latex -c "\dt"`.
 
+## Phát triển và test
+
+- Backend/worker mount `./backend` vào container. `rq worker` không tự nạp lại code, và `uvicorn --reload` đã không nhận ra file đổi trên Windows bind mount khi kiểm thử. Sau khi sửa code backend, chạy `docker compose restart backend worker`.
+- Chạy test backend (pytest chưa có sẵn trong image; lệnh `pip install` chỉ ảnh hưởng container đang chạy): xem `backend/tests/README.md`.
+- Dọn thư mục upload mồ côi: `docker compose exec backend python -m app.services.retention` (dry-run; chính sách ở [DATABASE](DATABASE.md)).
+- Giới hạn upload, timeout, giới hạn đăng nhập sai và `CORS_ORIGINS` đổi bằng biến môi trường (bảng ở [ARCHITECTURE](ARCHITECTURE.md)); đặt trong `.env` cạnh `docker-compose.yml` rồi `docker compose up -d`.
+
 ## Troubleshooting
 
 - Worker không nhận job: kiểm tra Redis healthy, `REDIS_URL`, queue name `math2latex`, worker logs.
@@ -70,7 +77,10 @@ Không có pgAdmin thì dùng `docker compose exec db psql -U math2latex_user -d
 - Font toán lỗi: DevTools Network, kiểm tra `/mathlive-fonts/*.woff2` trả 200.
 - OCR chậm: kiểm tra provider, cold model download, page count và worker log.
 - GPU: kiểm tra trong worker, không chỉ trên host.
-- Đăng ký/đăng nhập không tạo cookie: kiểm tra `AUTH_SECRET` có độ dài tối thiểu 32 ký tự và origin frontend có trong CORS allowlist.
+- Đăng ký/đăng nhập không tạo cookie: kiểm tra `AUTH_SECRET` có độ dài tối thiểu 32 ký tự và origin frontend có trong `CORS_ORIGINS`.
+- 429 khi đăng nhập: đăng nhập sai quá nhiều lần; chờ hết `Retry-After` hoặc xóa khóa `login-fail:*` trong Redis (chỉ khi chắc chắn là lần thử của chính bạn).
+- 403 "Origin không được phép" khi gọi API từ trình duyệt: origin của frontend chưa có trong `CORS_ORIGINS`.
+- Upload bị từ chối: 400 (không phải PDF hợp lệ/cần mật khẩu), 413 (quá lớn), 422 (quá nhiều trang hoặc trang quá lớn).
 
 ## Authentication configuration
 

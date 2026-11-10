@@ -39,6 +39,16 @@ services:
       REDIS_URL: redis://redis:6379/0
       AUTH_SECRET: ${AUTH_SECRET:-local-development-secret-change-before-deploy-2026}
       AUTH_COOKIE_SECURE: ${AUTH_COOKIE_SECURE:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      # Giới hạn upload/xử lý (xem backend/app/core/limits.py); mặc định khớp code.
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-100}
+      MAX_PDF_PAGES: ${MAX_PDF_PAGES:-200}
+      MAX_PAGE_PIXELS: ${MAX_PAGE_PIXELS:-25000000}
+      PDF_JOB_TIMEOUT_SECONDS: ${PDF_JOB_TIMEOUT_SECONDS:-1800}
+      OCR_JOB_TIMEOUT_SECONDS: ${OCR_JOB_TIMEOUT_SECONDS:-3600}
+      LOGIN_MAX_FAILURES: ${LOGIN_MAX_FAILURES:-5}
+      LOGIN_IP_MAX_FAILURES: ${LOGIN_IP_MAX_FAILURES:-30}
+      LOGIN_WINDOW_SECONDS: ${LOGIN_WINDOW_SECONDS:-900}
     depends_on:
       db:
         condition: service_healthy
@@ -61,6 +71,9 @@ services:
       # Set to 'cuda' if using GPU, 'cpu' otherwise
       MATH_DETECTOR_DEVICE: ${MATH_DETECTOR_DEVICE:-cpu}
       MATH_DETECTOR_BACKEND: onnx
+      # Worker kiểm tra lại PDF bằng cùng giới hạn với API.
+      MAX_PDF_PAGES: ${MAX_PDF_PAGES:-200}
+      MAX_PAGE_PIXELS: ${MAX_PAGE_PIXELS:-25000000}
       HF_ENDPOINT: https://huggingface.co
     depends_on:
       db:

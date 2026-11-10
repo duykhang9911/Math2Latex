@@ -15,11 +15,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.api import documents as documents_api
+from app.core import queue as job_queue
 from app.core import security
 from app.core.database import Base, get_db
 from app.main import app
 from app.models import Document, FormulaEntry, User
+from app.services import action_log
 
 TEST_PG_URL = os.getenv("TEST_PG_URL")
 
@@ -42,8 +43,8 @@ def pg_sessions(monkeypatch):
 
     jobs = []
     monkeypatch.setattr(security, "AUTH_SECRET", os.environ["AUTH_SECRET"])
-    monkeypatch.setattr(documents_api, "enqueue_job", lambda *args, **kwargs: jobs.append(args))
-    monkeypatch.setattr(documents_api, "_log_action", lambda *args, **kwargs: None)
+    monkeypatch.setattr(job_queue, "enqueue_job", lambda *args, **kwargs: jobs.append(args))
+    monkeypatch.setattr(action_log, "log_action", lambda *args, **kwargs: None)
     app.dependency_overrides[get_db] = _get_db
     yield sessions, jobs
     app.dependency_overrides.clear()
