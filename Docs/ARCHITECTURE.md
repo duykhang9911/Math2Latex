@@ -75,6 +75,32 @@ GPU là tùy chọn: dòng `gpus: all` của worker trong Compose đang comment 
 
 Production nhiều host cần shared object storage/volume cho file và model cache; local Compose dùng bind mount.
 
+### Cấu hình suy luận đã chốt (S2-05): CPU
+
+Chưa có GPU trong Docker trên máy phát triển (không `nvidia-smi`, `cuda_available=False`, ONNX chỉ có CPU provider) nên cấu hình CUDA **chưa được đo và chưa được chọn**. Cấu hình chạy được và đã đo là CPU (`MATH_DETECTOR_DEVICE=cpu`, `MATH_DETECTOR_BACKEND=onnx`), trong worker 16 vCPU / 8 GB RAM, ngày 2026-11-10, trang 1024×736 của đề thi 15 trang:
+
+| Hạng mục | Kết quả |
+|---|---|
+| Nạp model detector / OCR (cold) | 4,4 s / 1,9 s |
+| Detect mỗi trang: trang đầu / trung bình các trang sau | 0,98 s / 0,64 s |
+| OCR mỗi crop (40 crop): đầu / trung bình sau / lớn nhất | 0,52 s / 0,23 s / 0,83 s |
+| RSS đỉnh của process worker | ≈ 1,2 GB sau khi nạp, ≈ 1,8 GB sau khi chạy |
+| Thực tế end-to-end, PDF 17 trang, 130 vùng | detect ≈ 35 s, OCR ≈ 46 s |
+
+Số liệu là một lần đo trên một máy, không phải benchmark; dùng để đặt kỳ vọng và thiết lập timeout (job timeout hiện 7200 s). Khi có máy GPU, bật `gpus: all` và `MATH_DETECTOR_DEVICE=cuda`, kiểm tra provider rồi đo lại bằng cùng cách; chỉ chuyển cấu hình khi số đo tốt hơn và inference thật chạy trong worker.
+
+### Phục hồi job (S2-03, S2-04)
+
+- Mọi job đưa vào RQ kèm `on_failure` (`mark_pdf_job_failed`, `mark_ocr_job_failed`). RQ gọi callback khi job ném lỗi, quá timeout hoặc bị bỏ rơi vì worker chết.
+- OCR: công thức còn `ocr_queued` → `ocr_failed`, document `ocr_processing` → `ocr_completed_with_errors`; người dùng bấm **Thử OCR lại** (`/formulas/retry`). Công thức đã `ocr_complete`/`submitted` không bị đụng.
+- Render/detect: document `processing_pages`/`detecting_formulas` → `processing_failed`.
+- Job chạy trùng là no-op: OCR bỏ qua công thức không còn `ocr_queued` (kiểm tra lại từng công thức trước khi chạy); job PDF chỉ chạy khi document còn `processing_pages`.
+- Drill đã chạy ngày 2026-11-10 (dữ liệu tạm, đã xóa):
+  1. Kill worker khi OCR đang chạy (41 công thức xong, 89 còn `ocr_queued`). Sau ≥ 100 s (hết heartbeat) khởi động lại worker: trong 6 s RQ đưa job vào failed registry, callback chạy, 89 công thức → `ocr_failed`, document `ocr_completed_with_errors`. Gọi `/retry` → 89 công thức OCR xong, document `ocr_complete`.
+  2. Dừng worker, upload (job nằm trong Redis), restart Redis (AOF bật): `rq info` vẫn thấy job; khởi động worker → document tới `formula_proposals_ready`.
+  3. Dừng Redis rồi upload: API trả 503, document `processing_failed`.
+- Giới hạn đã biết: nếu worker chết nhưng không khởi động lại, công thức vẫn `ocr_queued` cho tới khi có worker chạy cleanup; mất dữ liệu Redis (xóa volume/`FLUSHALL`) làm mất job đang chờ mà không có callback — document kẹt `ocr_processing`/`processing_pages` (chưa có cơ chế phát hiện). `restart: unless-stopped` của worker chưa được kiểm chứng bằng crash thật (`docker kill` được tính là dừng thủ công nên không restart).
+
 ## Authentication/security boundary
 
 - Access token JWT ngắn hạn nằm trong cookie HttpOnly `math2latex_access`, không expose cho JavaScript.

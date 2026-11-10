@@ -20,6 +20,6 @@ Một file được upload nhiều lần nên số vùng/trạng thái khác nha
 ## Quy tắc
 
 - Không commit PDF, crop, ảnh trang vào Git.
-- Không xóa các document và thư mục `backend/uploads/<document_id>/` này, kể cả khi làm retention/cleanup (S3-03) hoặc `docker compose down -v`. Sao lưu `backend/uploads/` và database ra ngoài repository trước khi dọn dẹp.
+- Không xóa các document và thư mục `backend/uploads/<document_id>/` này, kể cả khi làm retention/cleanup (S3-03) hoặc `docker compose down -v`. Sao lưu `backend/uploads/` và database ra ngoài repository trước khi dọn dẹp. Bản sao lưu đầu tiên (2026-11-10): `D:\Math2Latex_backup\20261110-1747\` gồm `uploads\` (1826 file, 28,8 MB) và `math2latex.dump` (`pg_dump --format=custom`, khôi phục bằng `pg_restore`); đã đọc lại được danh mục dump. Thư mục này nằm ngoài Git.
 - Mỗi file mới phải ghi nguồn và người xác nhận quyền dùng vào bảng trên.
 - Dữ liệu tổng hợp chỉ dùng để kiểm thử chức năng, không dùng để kết luận độ chính xác.

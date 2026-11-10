@@ -147,9 +147,15 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 | Task | Trạng thái |
 |---|---|
-| S2-01 | Xong phần test: `tests/api/test_ocr_queue.py` (gọi recognize/retry lần hai → 409, chỉ 1 job) và `tests/api/test_ocr_queue_concurrency.py` trên PostgreSQL thật (row lock chặn request thứ hai; bỏ `with_for_update` thì test này fail). Còn lại: idempotency phía worker khi 2 job cùng chạy một document |
-| S2-02 | Xong cho upload/recognize/retry: Redis lỗi → 503, state được hoàn tác, gọi lại được. Còn lại: nhánh enqueue thành công nhưng `_log_action` lỗi cũng bị hoàn tác state trong khi job đã vào queue |
+| S2-01 | Xong: `tests/api/test_ocr_queue.py`, `tests/api/test_ocr_queue_concurrency.py` (PostgreSQL; bỏ `with_for_update` thì test chờ khóa fail). Worker bỏ qua công thức/document đã được job khác xử lý; có test |
+| S2-02 | Xong cho upload/recognize/retry: Redis lỗi → 503, state hoàn tác, gọi lại được (test + thử thật). Còn lại, chưa sửa: nếu enqueue thành công nhưng ghi log lỗi, code vẫn hoàn tác state trong khi job đã vào queue |
+| S2-03 | Xong: mọi job kèm RQ `on_failure`; worker chết giữa OCR → công thức `ocr_queued` về `ocr_failed`, document `ocr_completed_with_errors`, retry được (drill thật). Còn lại: document kẹt khi mất dữ liệu Redis; UI chưa báo job quá hạn khi không có worker |
+| S2-04 | Xong: Redis AOF giữ job khi restart Redis (drill thật); upload khi Redis down → 503. Ghi trong [ARCHITECTURE](ARCHITECTURE.md) |
+| S2-05 | Xong với **CPU**: đã đo latency/RAM thật (ARCHITECTURE). Cấu hình CUDA chưa đo vì chưa có GPU trong Docker; không chọn ngầm |
+| S2-06 | Phần backend xong; ma trận lỗi ở [DEVELOPMENT_PLAYBOOK](DEVELOPMENT_PLAYBOOK.md). Phần UI mới đọc code, **chưa kiểm bằng trình duyệt** (Toàn) |
+| S2-07 | Xong: `tests/worker/` (15 test); toàn bộ suite 51 pass + 2 PostgreSQL (53 pass khi có `TEST_PG_URL`) |
 
+**Gate G2:** queue an toàn khi lặp/restart: đạt (bằng test và drill). GPU/CPU chốt bằng bằng chứng: đạt với CPU, GPU chưa đo. **D-01 chưa được quyết định**: cần chủ dự án trả lời. Còn thiếu để đóng hẳn: Toàn kiểm UI queued/failed/retry bằng trình duyệt.
 ### Sprint 3 (tuần 5–6) — Bảo mật, giới hạn và vòng đời dữ liệu
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
@@ -240,11 +246,11 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | FR0-04 | `api/auth.py` | Logout rồi `/me` trả 401 | — |
 | FR0-05 | `api/documents.py` (`_get_owned_document`) | `test_document_is_visible_only_to_owner`, `test_other_users_document_is_404_everywhere`, `test_orphan_document_is_not_visible` | — |
 | FR1-01 | `api/documents.py` upload | `test_upload_records_size_and_returns_document_id` | Chỉ-PDF/giới hạn chưa có test → S3-01, S3-02 |
-| FR1-02 | `core/queue.py`, upload/recognize | `tests/api/test_ocr_queue.py` (enqueue 1 lần, Redis lỗi → 503 và hoàn tác), `test_ocr_queue_concurrency.py` (PostgreSQL) | Idempotency phía worker → S2-03 |
-| FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | Chưa có | Worker/pipeline test, PDF nhiều trang/rỗng/hỏng → S2-07, S3-02 |
+| FR1-02 | `core/queue.py`, upload/recognize | `tests/api/test_ocr_queue.py`, `test_ocr_queue_concurrency.py` (PostgreSQL), `tests/worker/` | — |
+| FR1-03 | `services/pdf_pages.py`, `services/formula_regions.py` | `tests/worker/` (PDF hỏng → `processing_failed`, job trùng no-op); chạy thật 17 trang (S1-07) | Detect với model thật trong test tự động, PDF mã hóa/rỗng → S3-02 |
 | FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | Chưa có | Bounds/crop khớp bbox → S4-07 |
 | FR1-05 | `POST/PATCH/DELETE …/formulas` | Chưa có | S4-07 |
-| FR1-06 | `services/formula_ocr.py` | Chưa có | OCR exception/retry → S2-03, S4-07 |
+| FR1-06 | `services/formula_ocr.py` | `tests/worker/` (fake model: thành công, lỗi từng công thức, lỗi nạp model) | Test API sửa/xóa vùng → S4-07 |
 | FR2-01 | `frontend/src/App.jsx` | Chưa có test frontend | S4-01, S4-02 |
 | FR2-02 | `App.jsx` (`FormulaEditor`) | Chưa có | S4-02, S4-10 |
 | FR2-03 | `App.jsx` (overlay pointer/keyboard) | Chưa có | S4-03, S4-06 |
@@ -260,7 +266,7 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | NFR-03 | `services/formula_regions.py`, Compose | Kiểm worker S1-06: đang CPU | Chốt cấu hình → S2-05 |
 | NFR-04 | — | Có dữ liệu ([DATASET](DATASET.md)), chưa có manifest/đáp án chuẩn | S5-01…S5-05 |
 | NFR-05 | `_log_action` | Chưa kiểm | S3-04 |
-| NFR-06 | `core/queue.py`, worker | Phần API: `test_ocr_queue*.py` | Worker restart, job treo, timeout → S2-03, S2-04, S2-07 |
+| NFR-06 | `core/queue.py`, `services/formula_ocr.py`, `services/pdf_pages.py` | `test_ocr_queue*.py`, `tests/worker/`; drill restart worker/Redis (ARCHITECTURE) | Mất dữ liệu Redis, job quá hạn trên UI |
 | NFR-07 | upload (chỉ có `.pdf` + 100 MB) | Chưa có test | S3-01, S3-02 |
 ## 8. Definition of Done của đồ án (điểm dừng)
 
