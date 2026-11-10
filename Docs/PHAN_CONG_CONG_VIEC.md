@@ -124,10 +124,10 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 | Task | Trạng thái |
 |---|---|
-| S1-01, S1-02, S1-03, S1-06 | Xong |
+| S1-01, S1-02, S1-03, S1-04, S1-06, S1-07 | Xong |
 | S1-05 | Xong phần tài liệu: bảng API trong ARCHITECTURE khớp OpenAPI; chờ Toàn review và quyết định D-09 để khóa |
-| S1-04 | **Chặn** — cần Toàn/chủ dự án cung cấp PDF có quyền sử dụng |
-| S1-07 | **Chặn** bởi S1-04 |
+| S1-04 (ghi chú) | Đã có 3 PDF đề thi bang Victoria, tài liệu công khai, chủ dự án xác nhận được dùng 2026-11-10 ([DATASET](DATASET.md)); còn thiếu bản scan và bố cục nhiều cột cho S5-01 |
+| S1-07 | Xong 2026-11-10 với DS-2022 (17 trang, CPU): sau khi ghim `rapidocr>=3.9,<3.10` (bản 3.10.0 làm `pix2text` không import được), detect ra 130 vùng trong ~35 s, OCR 130 vùng trong ~46 s, Submit giữ nguyên `latex_raw`, export `.tex` đúng. Chỉ là smoke test chức năng, chưa phải đo độ chính xác. Dữ liệu tạm đã xóa, DB về 1 user/15 document/1669 công thức |
 
 ### Sprint 2 (tuần 3–4) — Độ tin cậy hàng đợi và GPU/CPU
 
