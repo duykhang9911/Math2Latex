@@ -148,7 +148,7 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | Task | Trạng thái |
 |---|---|
 | S2-01 | Xong: `tests/api/test_ocr_queue.py`, `tests/api/test_ocr_queue_concurrency.py` (PostgreSQL; bỏ `with_for_update` thì test chờ khóa fail). Worker bỏ qua công thức/document đã được job khác xử lý; có test |
-| S2-02 | Xong cho upload/recognize/retry: Redis lỗi → 503, state hoàn tác, gọi lại được (test + thử thật). Còn lại, chưa sửa: nếu enqueue thành công nhưng ghi log lỗi, code vẫn hoàn tác state trong khi job đã vào queue |
+| S2-02 | Xong cho upload/recognize/retry: Redis lỗi → 503, state hoàn tác, gọi lại được (test + thử thật). Đã sửa: lỗi ghi log sau khi job đã vào queue không còn hoàn tác state (`_log_action_after_enqueue`, có test đã chứng minh fail trên code cũ) |
 | S2-03 | Xong: mọi job kèm RQ `on_failure`; worker chết giữa OCR → công thức `ocr_queued` về `ocr_failed`, document `ocr_completed_with_errors`, retry được (drill thật). Còn lại: document kẹt khi mất dữ liệu Redis; UI chưa báo job quá hạn khi không có worker |
 | S2-04 | Xong: Redis AOF giữ job khi restart Redis (drill thật); upload khi Redis down → 503. Ghi trong [ARCHITECTURE](ARCHITECTURE.md) |
 | S2-05 | Xong với **CPU**: đã đo latency/RAM thật (ARCHITECTURE). Cấu hình CUDA chưa đo vì chưa có GPU trong Docker; không chọn ngầm |

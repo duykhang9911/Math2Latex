@@ -202,3 +202,29 @@ def test_jobs_are_enqueued_with_failure_callbacks(make_client, make_user, db_ses
         formula_ocr.mark_ocr_job_failed,
         formula_ocr.mark_ocr_job_failed,
     ]
+
+@pytest.mark.parametrize(
+    ("endpoint", "document_status", "before", "after"),
+    [
+        ("recognize", "formula_proposals_ready", "proposed", "ocr_queued"),
+        ("retry", "ocr_completed_with_errors", "ocr_failed", "ocr_queued"),
+    ],
+)
+def test_log_failure_after_enqueue_does_not_roll_back_queued_state(
+    make_client, make_user, db_session, enqueued_jobs, monkeypatch, endpoint, document_status, before, after
+):
+    user = make_user("alice")
+    document = _add_document(db_session, user, status=document_status)
+    _add_formulas(db_session, document, [before])
+
+    def _broken_log(*_args, **_kwargs):
+        raise RuntimeError("logs table unavailable")
+
+    monkeypatch.setattr(documents_api, "_log_action", _broken_log)
+
+    response = make_client(user).post(f"/api/documents/{document.id}/formulas/{endpoint}")
+
+    assert response.status_code == 202
+    assert len(enqueued_jobs) == 1
+    assert _statuses(db_session, document) == [after]
+    assert _document_status(db_session, document) == "ocr_processing"

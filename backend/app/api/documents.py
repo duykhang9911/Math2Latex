@@ -46,6 +46,15 @@ def _log_action(
     db.commit()
 
 
+def _log_action_after_enqueue(db: Session, *args, **kwargs) -> None:
+    """Job đã vào queue: lỗi ghi log không được làm hoàn tác trạng thái hay trả lỗi cho người dùng."""
+    try:
+        _log_action(db, *args, **kwargs)
+    except Exception:
+        db.rollback()
+        logger.exception("Could not write action log after the job was queued")
+
+
 @router.post("/upload", response_model=DocumentUploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
@@ -333,7 +342,6 @@ def recognize_formula_regions(
     db.commit()
     try:
         enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed)
-        _log_action(db, "recognize_queued", document_id, {"formula_count": len(formulas)}, current_user.id)
     except Exception as error:
         for formula in formulas:
             formula.status = "proposed"
@@ -342,6 +350,7 @@ def recognize_formula_regions(
         _log_action(db, "recognize_job_failed", document_id, {"error": str(error)}, current_user.id)
         logger.error(f"Error queueing OCR: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa OCR vào hàng xử lý") from error
+    _log_action_after_enqueue(db, "recognize_queued", document_id, {"formula_count": len(formulas)}, current_user.id)
     return {"document_id": document_id, "status": document.status, "queued_count": len(formulas)}
 
 
@@ -376,7 +385,6 @@ def retry_failed_formula_ocr(
     db.commit()
     try:
         enqueue_job(process_formula_ocr, document_id, on_failure=mark_ocr_job_failed)
-        _log_action(db, "retry_queued", document_id, {"formula_count": len(failed_formulas)}, current_user.id)
     except Exception as error:
         for formula in failed_formulas:
             formula.status = "ocr_failed"
@@ -385,6 +393,7 @@ def retry_failed_formula_ocr(
         _log_action(db, "retry_job_failed", document_id, {"error": str(error)}, current_user.id)
         logger.error(f"Error queueing retry: {error}")
         raise HTTPException(status_code=503, detail="Không thể đưa OCR vào hàng xử lý") from error
+    _log_action_after_enqueue(db, "retry_queued", document_id, {"formula_count": len(failed_formulas)}, current_user.id)
     return {
         "document_id": document_id,
         "status": document.status,
