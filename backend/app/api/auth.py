@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
+from app.core.rate_limit import LoginRateLimiter, get_login_limiter
 from app.core.security import (
     ACCESS_COOKIE_NAME,
     ACCESS_TOKEN_TTL_MINUTES,
@@ -57,14 +58,28 @@ def register(
 @router.post("/login", response_model=UserResponse)
 def login(
     credentials: AuthCredentials,
+    request: Request,
     response: Response,
     db: Session = Depends(get_db),
+    limiter: LoginRateLimiter = Depends(get_login_limiter),
 ):
     username = credentials.username.strip().lower()
+    client_ip = request.client.host if request.client else "unknown"
+
+    wait_seconds = limiter.retry_after(client_ip, username)
+    if wait_seconds:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Đăng nhập sai quá nhiều lần. Thử lại sau {wait_seconds} giây",
+            headers={"Retry-After": str(wait_seconds)},
+        )
+
     user = db.query(User).filter(User.username == username).first()
     if user is None or not verify_password(credentials.password, user.password_hash):
+        limiter.record_failure(client_ip, username)
         raise HTTPException(status_code=401, detail="Tên đăng nhập hoặc mật khẩu không đúng")
 
+    limiter.reset(client_ip, username)
     _set_auth_cookie(response, user)
     return user
 

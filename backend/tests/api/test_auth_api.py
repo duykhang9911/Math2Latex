@@ -1,43 +1,6 @@
-from collections.abc import Iterator
 from uuid import UUID, uuid4
 
-import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from app.core.database import get_db
-from app.core import security
-from app.main import app
 from app.models import Document, User
-
-
-@pytest.fixture
-def auth_client(tmp_path, monkeypatch) -> Iterator[tuple[TestClient, sessionmaker]]:
-    database_path = tmp_path / "auth-test.sqlite"
-    engine = create_engine(
-        f"sqlite:///{database_path.as_posix()}",
-        connect_args={"check_same_thread": False},
-    )
-    User.__table__.create(engine)
-    Document.__table__.create(engine)
-    test_sessions = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-    monkeypatch.setattr(security, "AUTH_SECRET", "test-auth-secret-that-is-long-enough-123456")
-
-    def override_get_db():
-        session = test_sessions()
-        try:
-            yield session
-        finally:
-            session.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-    try:
-        with TestClient(app) as client:
-            yield client, test_sessions
-    finally:
-        app.dependency_overrides.clear()
-        engine.dispose()
 
 
 def test_register_login_logout_and_password_hash(auth_client):

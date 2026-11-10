@@ -25,3 +25,8 @@ MAX_FILENAME_LENGTH = 255
 
 PDF_JOB_TIMEOUT_SECONDS = _int_env("PDF_JOB_TIMEOUT_SECONDS", 1800)
 OCR_JOB_TIMEOUT_SECONDS = _int_env("OCR_JOB_TIMEOUT_SECONDS", 3600)
+
+# Đăng nhập sai: tối đa N lần cho mỗi (IP, username) và M lần cho mỗi IP trong một cửa sổ; vượt thì trả 429.
+LOGIN_MAX_FAILURES = _int_env("LOGIN_MAX_FAILURES", 5)
+LOGIN_IP_MAX_FAILURES = _int_env("LOGIN_IP_MAX_FAILURES", 30)
+LOGIN_WINDOW_SECONDS = _int_env("LOGIN_WINDOW_SECONDS", 900)

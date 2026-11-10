@@ -1,5 +1,6 @@
 import os
 import tempfile
+from collections.abc import Iterator
 
 # Phải đặt trước khi import app: database.py/security.py/documents.py đọc env lúc import.
 os.environ.setdefault("DB_URL", "sqlite://")
@@ -101,3 +102,31 @@ def make_pdf():
         return data
 
     return _make
+
+
+@pytest.fixture
+def auth_client(tmp_path, monkeypatch) -> Iterator[tuple[TestClient, sessionmaker]]:
+    database_path = tmp_path / "auth-test.sqlite"
+    engine = create_engine(
+        f"sqlite:///{database_path.as_posix()}",
+        connect_args={"check_same_thread": False},
+    )
+    User.__table__.create(engine)
+    Document.__table__.create(engine)
+    test_sessions = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(security, "AUTH_SECRET", "test-auth-secret-that-is-long-enough-123456")
+
+    def override_get_db():
+        session = test_sessions()
+        try:
+            yield session
+        finally:
+            session.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app) as client:
+            yield client, test_sessions
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
