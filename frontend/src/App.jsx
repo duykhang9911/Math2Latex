@@ -582,18 +582,37 @@ function App() {
           </div>
 
           {pages.length > 0 && (
-            <div className="review-layout">
-              <section className="page-column">
+            <div className="review-pages">
+              <div className="review-toolbar">
                 <div className="section-heading">
-                  <div><p className="eyebrow">Document pages</p><h3>Trang PDF</h3></div>
-                  <span className="count-label">{pages.length} trang</span>
+                  <div><p className="eyebrow">Document pages</p><h3>Theo dõi từng trang</h3></div>
+                  <span className="count-label">{pages.length} trang · {formulas.length} công thức</span>
                 </div>
-                <div className="page-stack">
-                  {pages.map((page) => {
-                    const pageFormulas = formulas.filter((formula) => formula.page_number === page.page_number)
-                    return (
-                      <article className="page-sheet" key={page.page_number}>
-                        <div className="page-caption"><span>Trang {String(page.page_number).padStart(2, '0')}</span><span>{pageFormulas.length} vùng</span></div>
+                {documentInfo.status === 'formula_proposals_ready' && (
+                  <div className="confirm-panel">
+                    <p>{proposalCount} vùng đề xuất cần nhận dạng.</p>
+                    <button className="dark-button" onClick={runOcr} disabled={busy || !formulas.length}>Xác nhận vùng & chạy OCR <span>→</span></button>
+                  </div>
+                )}
+                {documentInfo.status === 'ocr_completed_with_errors' && failedCount > 0 && (
+                  <div className="confirm-panel retry-panel">
+                    <p>{failedCount} công thức OCR lỗi.</p>
+                    <button className="dark-button" onClick={retryOcr} disabled={busy}>Thử OCR lại <span>↻</span></button>
+                  </div>
+                )}
+              </div>
+
+              {pages.map((page) => {
+                const pageFormulas = formulas.filter((formula) => formula.page_number === page.page_number)
+                const submittedOnPage = pageFormulas.filter((formula) => formula.status === 'submitted').length
+                return (
+                  <section className="page-review" id={`page-${page.page_number}`} key={page.page_number} aria-labelledby={`page-title-${page.page_number}`}>
+                    <div className="page-review-heading">
+                      <h3 id={`page-title-${page.page_number}`}>Trang {String(page.page_number).padStart(2, '0')}</h3>
+                      <span className="count-label">{pageFormulas.length} vùng · {submittedOnPage} đã lưu</span>
+                    </div>
+                    <div className="page-review-body">
+                      <article className="page-sheet">
                         <div
                           className="page-image-wrap"
                           onPointerMove={(event) => moveRegionPointer(event, page)}
@@ -641,50 +660,34 @@ function App() {
                           </div>
                         )}
                       </article>
-                    )
-                  })}
-                </div>
-              </section>
 
-              <aside className="formula-column">
-                <div className="section-heading formula-heading">
-                  <div><p className="eyebrow">Detected expressions</p><h3>Công thức</h3></div>
-                  <span className="count-label">{formulas.length} mục</span>
-                </div>
-                {documentInfo.status === 'formula_proposals_ready' && (
-                  <div className="confirm-panel">
-                    <p>{proposalCount} vùng đề xuất cần nhận dạng.</p>
-                    <button className="dark-button" onClick={runOcr} disabled={busy || !formulas.length}>Xác nhận vùng & chạy OCR <span>→</span></button>
-                  </div>
-                )}
-                {documentInfo.status === 'ocr_completed_with_errors' && failedCount > 0 && (
-                  <div className="confirm-panel retry-panel">
-                    <p>{failedCount} công thức OCR lỗi.</p>
-                    <button className="dark-button" onClick={retryOcr} disabled={busy}>Thử OCR lại <span>↻</span></button>
-                  </div>
-                )}
-                {formulas.length === 0 && <p className="empty-state">Chưa phát hiện công thức trên các trang này.</p>}
-                <div className="formula-list">
-                  {formulas.map((formula, index) => (
-                    <FormulaEditor
-                      key={formula.formula_id}
-                      formula={formula}
-                      index={index}
-                      selected={selectedFormulaId === formula.formula_id}
-                      value={edits[formula.formula_id] ?? ''}
-                      editable={formula.status === 'ocr_complete' || formula.status === 'submitted'}
-                      onSelect={() => setSelectedFormulaId(formula.formula_id)}
-                      onChange={(value) => setEdits((current) => ({ ...current, [formula.formula_id]: value }))}
-                      onSave={() => perform(() => submitFormula(formula))}
-                      onDelete={() => perform(() => deleteRegion(formula.formula_id))}
-                      onUpdateRegion={() => perform(() => updateRegion(formula))}
-                      coordinates={manualRegions[formula.formula_id] ?? `${formula.bounds.x_min},${formula.bounds.y_min},${formula.bounds.x_max},${formula.bounds.y_max}`}
-                      setCoordinates={(value) => setManualRegions((current) => ({ ...current, [formula.formula_id]: value }))}
-                      canEditRegion={formula.status === 'proposed'}
-                    />
-                  ))}
-                </div>
-              </aside>
+                      <div className="page-formulas">
+                        {pageFormulas.length === 0 && <p className="empty-state">Trang này chưa có vùng công thức.</p>}
+                        <div className="formula-list">
+                          {pageFormulas.map((formula) => (
+                            <FormulaEditor
+                              key={formula.formula_id}
+                              formula={formula}
+                              index={formulas.indexOf(formula)}
+                              selected={selectedFormulaId === formula.formula_id}
+                              value={edits[formula.formula_id] ?? ''}
+                              editable={formula.status === 'ocr_complete' || formula.status === 'submitted'}
+                              onSelect={() => setSelectedFormulaId(formula.formula_id)}
+                              onChange={(value) => setEdits((current) => ({ ...current, [formula.formula_id]: value }))}
+                              onSave={() => perform(() => submitFormula(formula))}
+                              onDelete={() => perform(() => deleteRegion(formula.formula_id))}
+                              onUpdateRegion={() => perform(() => updateRegion(formula))}
+                              coordinates={manualRegions[formula.formula_id] ?? `${formula.bounds.x_min},${formula.bounds.y_min},${formula.bounds.x_max},${formula.bounds.y_max}`}
+                              setCoordinates={(value) => setManualRegions((current) => ({ ...current, [formula.formula_id]: value }))}
+                              canEditRegion={formula.status === 'proposed'}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+                )
+              })}
             </div>
           )}
         </section>
