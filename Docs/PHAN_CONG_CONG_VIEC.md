@@ -9,9 +9,9 @@ Tài liệu này là nguồn chuẩn cho phạm vi, phân công, lịch và đi�
 | Đề tài | Math2Latex — chuyển công thức trong PDF thành LaTeX có thể chỉnh sửa |
 | Thời lượng | 12 tuần, chia 6 sprint × 2 tuần |
 | Điểm dừng | Mục 8 — Definition of Done của đồ án |
-| Thành viên | Đoàn Trương Duy Khang, Ngô Hồ Tuấn Toàn (xem [TEAM](TEAM.md)) |
+| Thành viên | Đoàn Trương Duy Khang (viết tắt Khang), Ngô Hồ Tấn Toàn (viết tắt Toàn); vai trò và thông tin ở [TEAM](TEAM.md) |
 | Kế hoạch đã duyệt | `Ke-hoach-du-an-Math2Latex-da-cap-nhat.docx` (FR1–FR3, công nghệ, lộ trình 12 tuần, rủi ro). Tài liệu này là bản kỹ thuật chi tiết của kế hoạch đó; mục 2.4 đối chiếu từng hạng mục. Nếu hai bên khác nhau thì kế hoạch đã duyệt thắng, trừ khi nhóm đổi qua mục 9 |
-| Chưa có thông tin | MSSV, lớp/môn, giảng viên hướng dẫn, ngày nộp/bảo vệ, mẫu báo cáo của khoa. Không tự điền; nhập vào [TEAM](TEAM.md) khi có |
+| Chưa có thông tin | Môn học, giảng viên hướng dẫn, ngày nộp/bảo vệ, mẫu báo cáo của khoa. Không tự điền; nhập vào [TEAM](TEAM.md) khi có (MSSV và lớp đã có trong TEAM) |
 
 Mọi con số effort là **người-ngày (PD)** ước lượng để nhóm điều chỉnh, không phải cam kết.
 
@@ -80,17 +80,36 @@ Giá trị trạng thái thực tế trong code (docx ghi `uploaded/processing/d
 
 ## 3. Phân công
 
-| Vai trò | Thành viên | Chịu trách nhiệm chính (R/A) | Review (C) |
-|---|---|---|---|
-| Backend/Platform | Đoàn Trương Duy Khang | API, models/migration, Redis/RQ, worker, PDF/MFD/OCR, Docker/GPU runtime, auth backend, test backend, sơ đồ backend/runtime | Frontend, contract UI, báo cáo phần kỹ thuật |
-| Frontend/QA/Docs | Ngô Hồ Tuấn Toàn | React/MathLive, accessibility, test frontend/browser, bộ PDF và đánh giá accuracy, báo cáo/slides/demo | API, bbox, hành vi persistence, queue |
+### 3.1 Vai trò (theo [TEAM](TEAM.md))
 
-Quy tắc:
+| Thành viên | MSSV / lớp | Owner chính | Owner hỗ trợ | Review chéo |
+|---|---|---|---|---|
+| Đoàn Trương Duy Khang | 2111844 / CTK45A | Backend/API, PostgreSQL/Alembic, Redis/RQ, worker, xử lý PDF/MFD/OCR, Docker/GPU runtime, auth backend, test backend, sơ đồ backend/runtime | Review API và state với frontend; hỗ trợ integration/demo | Review frontend, contract UI, test người dùng của Toàn |
+| Ngô Hồ Tấn Toàn | 2212473 / CTK46A | Frontend/MathLive, accessibility, test frontend/browser, bộ PDF và đánh giá accuracy, báo cáo/slides/demo | Thu thập PDF có quyền dùng; kiểm thử end-to-end/accuracy cùng backend | Review service/API behavior, bbox, hành vi persistence, queue của Khang |
 
-- Mỗi task có đúng **một owner**; người còn lại là reviewer. Không merge việc của mình khi chưa có review (nhánh/PR theo [GIT_WORKFLOW](GIT_WORKFLOW.md)).
+### 3.2 Quy tắc phối hợp
+
+- Mỗi task có đúng **một owner**; người còn lại là reviewer. Task "Khang + Toàn" là việc chung, kết quả cần cả hai xác nhận.
+- Khang làm và push trên repository này. **Toàn làm và push trên GitHub của Toàn**; vì vậy các task của Toàn trong tài liệu này ở trạng thái "chưa làm" nghĩa là chưa được ghi nhận vào repository này, không phải Toàn chưa bắt đầu. Cách đưa phần của Toàn vào repository chính do hai thành viên chốt (quyết định **D-11**, mục 9); mặc định theo [GIT_WORKFLOW](GIT_WORKFLOW.md): PR có review chéo, ghi task ID và test đã chạy.
 - Chốt API/schema/status trước khi hai bên làm song song; đổi contract phải cập nhật SRS/ARCHITECTURE cùng PR.
 - Khang không tự kết luận độ chính xác OCR; Toàn không che lỗi backend bằng state UI.
 - Cả hai cùng ký xác nhận mỗi gate và bản demo cuối.
+- Khi một task của Toàn đã được làm trước trong repository này (S1-03, S1-04, S1-07, phần backend của S2-06), owner vẫn là Toàn: Toàn review, sửa nếu cần và ghi nhận lại trên GitHub của Toàn.
+
+### 3.3 Phân công theo sprint
+
+Sức chứa tham khảo: 10 người-ngày (PD) cho mỗi người trong một sprint 2 tuần; con số PD là ước lượng ở các bảng sprint bên dưới.
+
+| Sprint | Đoàn Trương Duy Khang | Ngô Hồ Tấn Toàn | Việc chung | Hỗ trợ/review theo TEAM |
+|---|---|---|---|---|
+| S1 (tuần 1–2) Nền tảng và contract | **3 PD** — S1-01, S1-02, S1-06 — xong | **3,5 PD** — S1-03, S1-04, S1-07 — đã làm trước trong repository này, chờ Toàn review | 1 PD — S1-05 — tài liệu xong, chờ Toàn review và quyết định D-09 | Toàn review S1-03/04/07 (đã làm trước) và S1-01/02/06; Khang review phần Toàn sửa |
+| S2 (tuần 3–4) Hàng đợi và GPU/CPU | **9 PD** — S2-01, S2-02, S2-03, S2-04, S2-05, S2-07 — xong | **2 PD** — S2-06 — phần backend đã có, UI queued/failed/retry chờ Toàn kiểm bằng trình duyệt | — | Khang cung cấp ma trận lỗi ở DEVELOPMENT_PLAYBOOK cho S2-06 |
+| S3 (tuần 5–6) Bảo mật và vòng đời dữ liệu | **11 PD** — S3-01, S3-02, S3-03, S3-04, S3-05, S3-06, S3-09 — xong | **2,5 PD** — S3-07, S3-08 — chưa ghi nhận | — | Khang cung cấp mã lỗi 400/413/422/429/403 cho S3-07 |
+| S4 (tuần 7–8) Giao diện và test, feature freeze | **2 PD** — S4-07 — xong | **14 PD** — S4-01, S4-02, S4-03, S4-04, S4-05, S4-06, S4-09, S4-10 — chưa ghi nhận | 1 PD — S4-08 | Khang review contract cho S4-04; hỗ trợ kiểm tra Docker/Node/font cho S4-06 theo MODULE_OWNERSHIP |
+| S5 (tuần 9–10) Đánh giá chất lượng | **4 PD** — S5-04 xong; S5-06 chờ kết quả đánh giá | **8 PD** — S5-01, S5-02, S5-03, S5-05 — chưa ghi nhận | — | Khang hỗ trợ runtime/dữ liệu cho S5-01…S5-03; Toàn cung cấp lỗi có bằng chứng cho S5-06 |
+| S6 (tuần 11–12) Báo cáo và demo | **4 PD** — S6-02 bản nháp, S6-05 và S6-06 một phần | **8,5 PD** — S6-01, S6-03, S6-04 — chưa ghi nhận | 4,5 PD — S6-07, S6-08 | Khang cung cấp sơ đồ/số đo cho báo cáo; cả hai diễn tập |
+
+Rủi ro phân bổ: S4 của Toàn là 14 PD, vượt sức chứa tham khảo 10 PD; S2–S3 của Khang là 9 và 11 PD, còn S4 chỉ 2 PD. Giảm thiểu mà không đổi owner: (1) Khang dùng thời gian trống ở S4 để review contract sớm, hỗ trợ S4-06 và hoàn thiện báo cáo kỹ thuật cho S6-01; (2) nếu Toàn quá tải, hoãn S4-09 (Tailwind, 3 PD) sang sau feature freeze hoặc bỏ, vì không ảnh hưởng chức năng, và ghi quyết định vào mục 9. Không thêm owner mới khi chưa có đồng ý của hai thành viên.
 
 ## 4. Lộ trình 12 tuần
 
@@ -107,6 +126,8 @@ Feature freeze:                                 ^ cuối S4 (tuần 8)
 Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 ### Sprint 1 (tuần 1–2) — Nền tảng và chốt contract
+
+**Phân công:** Khang — S1-01, S1-02, S1-06; Toàn — S1-03, S1-04, S1-07; chung — S1-05.
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
@@ -130,6 +151,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S1-07 | Xong 2026-11-10 với `2022-MathMethods1.pdf` (17 trang, CPU; file này không thuộc dữ liệu đánh giá): sau khi ghim `rapidocr>=3.9,<3.10` (bản 3.10.0 làm `pix2text` không import được), detect ra 130 vùng trong ~35 s, OCR 130 vùng trong ~46 s, Submit giữ nguyên `latex_raw`, export `.tex` đúng. Chỉ là smoke test chức năng, chưa phải đo độ chính xác. Dữ liệu tạm đã xóa, DB về 1 user/15 document/1669 công thức |
 
 ### Sprint 2 (tuần 3–4) — Độ tin cậy hàng đợi và GPU/CPU
+
+**Phân công:** Khang — S2-01, S2-02, S2-03, S2-04, S2-05, S2-07; Toàn — S2-06.
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
@@ -157,6 +180,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 **Gate G2:** queue an toàn khi lặp/restart: đạt (bằng test và drill). GPU/CPU chốt bằng bằng chứng: đạt với CPU, GPU chưa đo. **D-01 chưa được quyết định**: cần chủ dự án trả lời. Còn thiếu để đóng hẳn: Toàn kiểm UI queued/failed/retry bằng trình duyệt.
 ### Sprint 3 (tuần 5–6) — Bảo mật, giới hạn và vòng đời dữ liệu
+
+**Phân công:** Khang — S3-01, S3-02, S3-03, S3-04, S3-05, S3-06, S3-09; Toàn — S3-07, S3-08.
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
@@ -188,6 +213,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 **Gate G3:** upload hỏng/mã hóa/quá giới hạn bị từ chối có thông báo: đạt; cleanup an toàn: đạt; backend test suite pass: đạt (141 test, gồm PostgreSQL và Redis thật). Còn chờ S3-07, S3-08 của Toàn.
 ### Sprint 4 (tuần 7–8) — Hoàn thiện giao diện và kiểm thử → **Feature freeze**
 
+**Phân công:** Khang — S4-07; Toàn — S4-01, S4-02, S4-03, S4-04, S4-05, S4-06, S4-09, S4-10; chung — S4-08.
+
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
 | S4-01 | Dọn code frontend: tách `App.jsx` (688 dòng) thành `services/api.js`, `PDFUploader`, `Preview`, `MathLiveEditor`, `hooks/useLatexSync` (tên theo kế hoạch đã duyệt; **một state LaTeX duy nhất** làm nguồn chân lý) | Toàn | Khang | 2.5 | Hành vi không đổi; build + lint pass |
@@ -212,6 +239,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S4-01…S4-06, S4-09, S4-10 | Việc của Toàn, chưa làm |
 ### Sprint 5 (tuần 9–10) — Đánh giá chất lượng
 
+**Phân công:** Khang — S5-04, S5-06; Toàn — S5-01, S5-02, S5-03, S5-05.
+
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
 | S5-01 | Manifest dữ liệu: mã tài liệu, số trang, loại (scan/vector/nhiều cột/inline/display), số bbox & LaTeX chuẩn đã review | Toàn | Khang | 3 | Manifest có provenance/quyền dùng |
@@ -231,6 +260,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S5-06 | Chưa làm: cần kết quả đánh giá của S5-01…S5-03 (Toàn) để biết lỗi nào đáng sửa |
 | S5-01, S5-02, S5-03, S5-05 | Việc của Toàn, chưa làm |
 ### Sprint 6 (tuần 11–12) — Báo cáo, demo, bảo vệ
+
+**Phân công:** Khang — S6-02, S6-05, S6-06; Toàn — S6-01, S6-03, S6-04; chung — S6-07, S6-08.
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
 |---|---|---|---|---|---|
@@ -327,15 +358,16 @@ Không tự chọn các mục dưới đây. Trạng thái mặc định đượ
 | ID | Câu hỏi | Mặc định khi chưa quyết | Hạn |
 |---|---|---|---|
 | D-01 | Có đưa Role Admin, reset mật khẩu/xác minh email, upload ảnh đơn lẻ vào phạm vi? | Không (giữ ngoài phạm vi) | Hết S2 |
-| D-09 | Kế hoạch đã duyệt ghi `POST /documents/{id}/process` đồng bộ; code dùng xử lý nền. Giữ code hiện tại và cập nhật contract trong tài liệu nộp, hay thêm endpoint `/process` tương thích? | Giữ code hiện tại; ghi chú sai khác ở báo cáo | Hết S1 |
-| D-10 | Có làm hướng mở rộng tuỳ chọn (Texo, dots.ocr/GLM-OCR, Mathpix/VLM làm backend thứ hai, WebSocket tiến trình) không? Mỗi mục cần quyết định riêng và kiểm chứng tính khả thi trước khi vào lịch | Không làm | Hết S3 |
 | D-02 | Test runner frontend nào? | Chưa chọn; dùng checklist thủ công cho tới khi chốt | Đầu S3 |
 | D-03 | Cách rate limit đăng nhập (thư viện hay tự viết)? | Chưa thêm dependency | Đầu S3 |
 | D-04 | Ngưỡng accuracy/IoU chấp nhận được? | Chỉ báo cáo số đo, không đặt ngưỡng | Đầu S5 |
 | D-05 | Cấu trúc/mẫu báo cáo của khoa | Chưa có; chương đề xuất ở S6-01 phải đối chiếu mẫu | Đầu S5 |
 | D-06 | Demo chỉ chạy local Compose hay cần server demo? | Chỉ local Compose | Đầu S5 |
 | D-07 | Document cũ `uploaded_by IS NULL` xử lý thế nào? | Không hiện cho ai | Đầu S3 |
-| D-08 | MSSV, lớp/môn, GVHD, nhóm trưởng, ngày nộp | Để trống trong TEAM | Sớm nhất |
+| D-08 | Môn học, giảng viên hướng dẫn, nhóm trưởng, ngày nộp (MSSV và lớp đã có trong TEAM) | Để trống trong TEAM | Sớm nhất |
+| D-09 | Kế hoạch đã duyệt ghi `POST /documents/{id}/process` đồng bộ; code dùng xử lý nền. Giữ code hiện tại và cập nhật contract trong tài liệu nộp, hay thêm endpoint `/process` tương thích? | Giữ code hiện tại; ghi chú sai khác ở báo cáo | Hết S1 |
+| D-10 | Có làm hướng mở rộng tuỳ chọn (Texo, dots.ocr/GLM-OCR, Mathpix/VLM làm backend thứ hai, WebSocket tiến trình) không? Mỗi mục cần quyết định riêng và kiểm chứng tính khả thi trước khi vào lịch | Không làm | Hết S3 |
+| D-11 | Cách đưa công việc của Toàn (làm trên GitHub của Toàn) vào repository chính: fork + PR, hay nhánh trong repository chung? Có điều chỉnh tải S4 của Toàn (14 PD) không? | PR vào `main` có review chéo theo GIT_WORKFLOW; giữ nguyên phân bổ tải | Đầu S4 |
 
 ## 10. Checklist trước bảo vệ
 
