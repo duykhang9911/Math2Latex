@@ -1,13 +1,22 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey
+from sqlalchemy import CheckConstraint, Column, String, Integer, Float, Text, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
 
 
+FORMULA_STATUSES = ("proposed", "ocr_queued", "ocr_complete", "ocr_failed", "submitted")
+
+
 class FormulaEntry(Base):
     __tablename__ = "formula_entries"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN (" + ", ".join(f"'{value}'" for value in FORMULA_STATUSES) + ")",
+            name="ck_formula_entries_status",
+        ),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 

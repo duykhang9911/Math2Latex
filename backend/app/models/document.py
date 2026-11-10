@@ -1,14 +1,33 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import BigInteger, Column, String, DateTime, ForeignKey, Integer
+from sqlalchemy import BigInteger, CheckConstraint, Column, String, DateTime, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.core.database import Base
 
 
+# Mọi giá trị status mà API/worker ghi; "uploaded" là giá trị của document tạo trước khi có pipeline nền.
+DOCUMENT_STATUSES = (
+    "uploaded",
+    "processing_pages",
+    "detecting_formulas",
+    "formula_proposals_ready",
+    "ocr_processing",
+    "ocr_complete",
+    "ocr_completed_with_errors",
+    "processing_failed",
+)
+
+
 class Document(Base):
     # __tablename__: tên bảng thật sự sẽ xuất hiện trong PostgreSQL
     __tablename__ = "documents"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN (" + ", ".join(f"'{value}'" for value in DOCUMENT_STATUSES) + ")",
+            name="ck_documents_status",
+        ),
+    )
 
     # uuid.uuid4 sinh ra 1 mã định danh ngẫu nhiên, gần như không bao giờ trùng -
     # an toàn hơn dùng số đếm 1,2,3... khi sau này có nhiều người dùng cùng lúc
