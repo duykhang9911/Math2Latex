@@ -243,6 +243,15 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S6-07 | Diễn tập bảo vệ ≥ 2 lần; danh sách câu hỏi dự kiến và hạn chế | Khang + Toàn | nhau | 1.5 | Biên bản diễn tập |
 | S6-08 | Dự phòng sửa lỗi/chỉnh báo cáo | Khang + Toàn | nhau | 3 | — |
 
+**Tiến độ Sprint 6 — phần của Khang (cập nhật 2026-11-10; làm sớm vì không phụ thuộc đánh giá):**
+
+| Task | Trạng thái |
+|---|---|
+| S6-02 | Bản nháp xong: [DIAGRAMS](DIAGRAMS.md) (chức năng theo tác nhân, triển khai Compose, sequence upload→OCR→Submit, hai sơ đồ trạng thái, ER). Nội dung đối chiếu với code; **chưa render thử bằng Mermaid**; cần Toàn review và cập nhật nếu code đổi |
+| S6-05 | Một phần: clone sạch từ repo, `docker compose config -q` pass và `docker compose build backend frontend` thành công (≈ 10 phút, tải lại toàn bộ dependency). Chưa có thành viên khác tự chạy từ README/SETUP, và chưa chạy `up` từ bản clone vì trùng cổng với stack đang chạy |
+| S6-06 | Một phần: quét `git ls-files` không thấy `.env`, upload, PDF, model weights, `node_modules`, `dist`, `.venv`, dump; không thấy chuỗi bí mật bằng regex (quét giới hạn). Còn các thông tin đăng nhập mặc định dành cho local trong `docker-compose.yml` (đã ghi trong SETUP/ARCHITECTURE). **Chưa tạo tag** vì chưa có phiên bản nộp |
+| S6-01, S6-03, S6-04 | Việc của Toàn, chưa làm |
+| S6-07, S6-08 | Cần cả hai thành viên; chưa làm |
 **Gate G6 = điểm dừng đồ án.** Chi tiết ở mục 8.
 
 ## 5. Quy trình hằng tuần

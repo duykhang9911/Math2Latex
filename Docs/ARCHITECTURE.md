@@ -103,7 +103,7 @@ Upload lần lượt các PDF trong [DATASET](DATASET.md) qua API bằng tài kh
 - Cold so với warm cùng file: detect 30,7 s → 18,8 s (nạp model lượt đầu).
 - Bộ nhớ container worker (lấy mẫu `docker stats` mỗi ~10 s, nên có thể bỏ lỡ đỉnh): thường 0,25–0,95 GiB, đỉnh quan sát 1,43 GiB.
 - 4 lần chạy, 558 vùng: không document nào `processing_failed`, không công thức nào `ocr_failed`, không `latex_raw` rỗng. Đây là tỉ lệ **lỗi vận hành** của pipeline; không nói gì về độ chính xác LaTeX (cần đáp án chuẩn của S5-01).
-- Số vùng của `2025-MathMethods1.pdf` (142) khác lần upload cũ trong database (107): lần cũ chạy trước khi ghim `rapidocr` và có thể đã được sửa tay; đây là lý do manifest S5-01 phải ghi rõ `document_id` chuẩn.
+- Số vùng của `2025-MathMethods1.pdf` (142) khác lần upload cũ trong database (107): chưa xác định nguyên nhân (có thể do phiên bản thư viện/model lúc đó hoặc vùng đã sửa tay); đây là lý do manifest S5-01 phải ghi rõ `document_id` chuẩn.
 - Chưa có số đo VRAM/GPU (không có GPU trong Docker trên máy này).
 ### Phục hồi job (S2-03, S2-04)
 

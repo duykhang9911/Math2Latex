@@ -7,6 +7,7 @@ Mỗi chủ đề có một nguồn chuẩn; tài liệu khác nên liên kết 
 | Tổng quan/chạy nhanh | [README](../README.md), [SETUP](SETUP.md) |
 | Yêu cầu/nghiệm thu | [SRS](SRS.md) |
 | Kiến trúc/luồng | [ARCHITECTURE](ARCHITECTURE.md) |
+| Sơ đồ (chức năng, triển khai, sequence, trạng thái, ER) | [DIAGRAMS](DIAGRAMS.md) |
 | Ownership | [MODULE_OWNERSHIP](MODULE_OWNERSHIP.md) |
 | Vị trí code/test | [PROJECT_STRUCTURE_GUIDE](PROJECT_STRUCTURE_GUIDE.md) |
 | Database/migration | [DATABASE](DATABASE.md) |
