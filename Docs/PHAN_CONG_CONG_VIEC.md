@@ -1,126 +1,270 @@
-# Kế hoạch hoàn thành Math2Latex — nhóm 2 thành viên
+# Kế hoạch đồ án tốt nghiệp Math2Latex (12 tuần, 2 thành viên)
 
-## 1. Nhân sự và nguyên tắc
+Tài liệu này là nguồn chuẩn cho phạm vi, phân công, lịch và điều kiện hoàn thành của đồ án. Yêu cầu chi tiết nằm ở [SRS](SRS.md); kiến trúc ở [ARCHITECTURE](ARCHITECTURE.md); quy trình làm feature ở [DEVELOPMENT_PLAYBOOK](DEVELOPMENT_PLAYBOOK.md).
 
-- **Đoàn Trương Duy Khang — Owner Backend/Platform:** API, PostgreSQL/Alembic, Redis/RQ, Docker/GPU, xử lý PDF/MFD/OCR.
-- **Ngô Hồ Tuấn Toàn — Owner Frontend/QA/Docs:** React/MathLive, accessibility, browser test, dữ liệu đánh giá được phép dùng, tài liệu/demo.
-- Hai người review chéo contract API, trạng thái, bbox và kết quả demo. MSSV, deadline và nhóm trưởng chưa được cung cấp nên chưa ghi.
-- Effort là **người-ngày (PD)** ước lượng, cần nhóm điều chỉnh theo lịch môn học. Các việc có thể chạy song song sau khi chốt contract.
+## 1. Thông tin chung
 
-## 2. Hiện trạng đầu vào
+| Mục | Nội dung |
+|---|---|
+| Đề tài | Math2Latex — chuyển công thức trong PDF thành LaTeX có thể chỉnh sửa |
+| Thời lượng | 12 tuần, chia 6 sprint × 2 tuần |
+| Điểm dừng | Mục 8 — Definition of Done của đồ án |
+| Thành viên | Đoàn Trương Duy Khang, Ngô Hồ Tuấn Toàn (xem [TEAM](TEAM.md)) |
+| Kế hoạch đã duyệt | `Ke-hoach-du-an-Math2Latex-da-cap-nhat.docx` (FR1–FR3, công nghệ, lộ trình 12 tuần, rủi ro). Tài liệu này là bản kỹ thuật chi tiết của kế hoạch đó; mục 2.4 đối chiếu từng hạng mục. Nếu hai bên khác nhau thì kế hoạch đã duyệt thắng, trừ khi nhóm đổi qua mục 9 |
+| Chưa có thông tin | MSSV, lớp/môn, giảng viên hướng dẫn, ngày nộp/bảo vệ, mẫu báo cáo của khoa. Không tự điền; nhập vào [TEAM](TEAM.md) khi có |
 
-- Đã có upload PDF, render trang, MFD proposals, crop, sửa vùng chuột/keyboard, pix2tex OCR, MathLive/LaTeX, Submit, migration và API.
-- Đang bổ sung đăng ký/đăng nhập Argon2/JWT cookie và owner scoping cho document APIs; migration ownership cần apply trên môi trường hiện tại.
-- Source/config có Redis/RQ, Redis AOF volume, worker GPU reservation, local MathLive font copy và Node 22.
-- Phải chạy/rebuild Compose ở phiên hiện tại để xác nhận thay đổi queue/GPU mới nhất; không lấy container/image cũ làm bằng chứng.
-- Không tìm thấy PDF toán thực được phép dùng trong uploads/repository; các PDF trong package `.venv` không phải bộ đánh giá.
+Mọi con số effort là **người-ngày (PD)** ước lượng để nhóm điều chỉnh, không phải cam kết.
 
-## 3. Kế hoạch theo milestone
+## 2. Phạm vi đồ án
 
-### M0 — Khởi động stack và xác nhận contract (P0, 0.5–1 ngày)
+### 2.1 Trong phạm vi
 
-**Owner:** Khang. **Review:** Toàn.
-
-- Chạy `docker compose config -q`, `docker compose up -d --build`, kiểm tra health `db`, `redis`, `backend`, `worker`, `frontend`.
-- Chạy Alembic upgrade; xác nhận API upload enqueue job vào queue `math2latex`.
-- Kiểm tra API response/status và frontend polling; ghi version/config thực tế.
-
-**Nghiệm thu:** các service healthy; `/health` trả `ok`; migration ở head; `rq info` nhận worker; upload test tạo document và job được xử lý.
-
-### M1 — Queue bền vững, idempotency và GPU (P0, 2–4 PD)
-
-**Owner:** Khang. **Review:** Toàn.
-
-- Test Redis AOF/volume khi restart Redis/backend/worker.
-- Chống enqueue kép cho recognize/retry; rà row lock, job identity, trạng thái khi Redis không nhận job.
-- Định nghĩa timeout/retry/failure visibility và cách phục hồi formula `ocr_queued` bị treo khi worker chết.
-- Trong worker, kiểm tra `torch.cuda.is_available()`, `onnxruntime.get_available_providers()` và chạy inference thật.
-- Nếu ONNX CUDA plugin lỗi: thử `MATH_DETECTOR_BACKEND=pytorch` trên CUDA, ghi latency/VRAM và chọn cấu hình thực sự chạy. Nếu chưa ổn định, chốt CPU fallback có giới hạn rõ.
-
-**Nghiệm thu:** test enqueue kép chỉ tạo một job hợp lệ; worker restart không để state mơ hồ; Redis unavailable trả lỗi retryable; có log provider và inference. Không ghi “GPU pass” chỉ từ `nvidia-smi`.
-
-### M2 — Bộ dữ liệu và đánh giá accuracy (P0/P1, 2–5 PD sau khi có tài liệu)
-
-**Owner:** Toàn. **Hỗ trợ:** Khang.
-
-- Chuẩn bị 5–10 PDF đại diện: scan, vector, nhiều cột, inline/display, nhiều trang; xác nhận quyền sử dụng.
-- Lập manifest gồm document code, page count, loại trang, expected bbox/formula count và LaTeX chuẩn đã review.
-- Không commit PDF riêng tư vào Git; lưu dữ liệu kiểm thử ở vị trí được nhóm thống nhất.
-- Đo detector precision/recall theo IoU threshold đã chọn; OCR exact match/edit distance trên crop chuẩn; cold/warm latency, RAM/VRAM, failure rate.
-- Ghi ví dụ OCR sai và khuyến nghị người dùng rà.
-
-**Nghiệm thu:** report tái lập được, có provenance/quyền dùng, baseline metric, lỗi phổ biến và threshold được nhóm/giảng viên thống nhất. Không tuyên bố accuracy nếu chưa có dataset phù hợp.
-
-### M3 — UI/accessibility và browser verification (P1, 1–3 PD)
-
-**Owner:** Toàn. **Review:** Khang.
-
-- Kiểm tra MathLive font local trong Docker Node 22; WOFF2 trả HTTP 200, không console font errors.
-- Test LaTeX ↔ MathLive với fraction, root, matrix, Greek và syntax lỗi.
-- Keyboard-only: Tab focus bbox, arrows move, Alt+arrows resize, Shift dùng bước 10 px; screen-reader name/help; touch/mobile.
-- Test queued/loading/failure/retry/saved/unsaved states và crop refresh sau resize.
-- Chỉ code-split MathLive nếu đo được lợi ích và không ảnh hưởng editor.
-
-**Nghiệm thu:** browser test pass desktop/mobile; keyboard và pointer thao tác được; font nội bộ hoạt động sau build/restart.
-
-### M4 — Upload hardening, retention và test tự động (P1, 3–6 PD)
-
-**Owner:** Khang (API/security), Toàn (UI tests/fixtures); review chéo.
-
-- Chốt giới hạn upload bytes, trang PDF, pixel count và processing timeout.
-- Validate PDF content/encryption, lỗi malformed; chống filename/path abuse.
-- Chốt retention/cleanup cho source, pages, crops, failed jobs và orphan files.
-- Hoàn thiện auth: unique username chuẩn hóa, token expiry/secret policy, cookie Secure/CSRF policy khi deploy HTTPS, rate limit login và quy trình với document cũ chưa owner.
-- Thêm backend tests cho schemas/bounds/state/API/queue; frontend tests cho editor/overlay/submit. Dùng fake detector/OCR trong unit tests; real GPU test opt-in.
-
-**Nghiệm thu:** giới hạn trả lỗi thân thiện; tests chạy bằng lệnh tài liệu hóa; cleanup không xóa dữ liệu hợp lệ.
-
-### M5 — Báo cáo và demo cuối (P1, 2–4 PD)
-
-**Owner:** Toàn (báo cáo/demo), Khang (sơ đồ backend/runtime); review chéo.
-
-- Trace SRS → implementation → test evidence.
-- Cập nhật architecture/sequence/deployment, setup, backlog/known limitations.
-- Chuẩn bị demo PDF được phép dùng: upload → sửa bbox → OCR → sửa hai editor → Submit → reload chứng minh `latex_raw`/`latex_final`.
-- Ghi rõ provider GPU/CPU, latency và accuracy report; không che các công thức OCR sai.
-
-**Nghiệm thu:** thành viên khác clone/setup và chạy demo được; báo cáo nói rõ phần chưa hoàn thiện.
-
-## 4. Phân công song song
-
-| Giai đoạn | Đoàn Trương Duy Khang | Ngô Hồ Tuấn Toàn | Điểm bàn giao |
+| ID | Chức năng | Trạng thái mã nguồn | Việc còn lại để đạt điểm dừng |
 |---|---|---|---|
-| M0 | Compose, migration, API/queue health | Smoke frontend, kiểm contract UI | document status + formula/page response |
-| M1 | Idempotency, worker restart, GPU/provider | Lập test matrix và ghi log/latency | worker behavior + report mẫu |
-| M2 | Sửa backend theo lỗi có bằng chứng | Xin PDF, label/ground truth, tính metric | dataset manifest + detector/OCR report |
-| M3 | Review API/bbox/crop behavior | Fonts, keyboard, mobile/browser test | acceptance evidence |
-| M4 | Limits/security/DB/queue tests | UI tests, fixtures và UX error state | test suite và cleanup policy |
-| M5 | Sơ đồ/API/runtime limitations | Báo cáo, slides, kịch bản demo | demo final đã chạy lại |
+| FR0 | Đăng ký/đăng nhập/đăng xuất, Argon2 + JWT cookie, owner scoping | Đã có + test API | Hardening (S3), test hết hạn/giả mạo token |
+| FR1 | Upload PDF → render → detect bbox → crop → OCR `latex_raw` qua queue | Đã có, đã chạy bằng ONNX CPU | Idempotency, phục hồi job treo, quyết định GPU/CPU, giới hạn upload (S2, S3) |
+| FR2 | Sửa vùng bằng pointer/keyboard; LaTeX ↔ MathLive hai chiều | Đã có | Kiểm thử keyboard/touch/font, test tự động (S4) |
+| FR3 | Submit ghi `latex_final`, giữ nguyên `latex_raw` | Đã có | Test hành vi resubmit, lỗi API (S4) |
+| FR4 | Lịch sử tải lên: liệt kê/mở/xóa, tải PDF gốc, xuất `.tex` từ `latex_final` | Đã có + test API | Test UI, retention/cleanup (S3, S4) |
+| NFR | Độ tin cậy queue, bảo mật upload/auth, tái lập môi trường, đánh giá accuracy có dữ liệu thật | Một phần | Toàn bộ S2–S5 |
 
-## 5. Lịch tham khảo 4 tuần
+### 2.2 Ngoài phạm vi (giữ nguyên theo SRS §5)
 
-Lịch này là khung gợi ý, không phải deadline cố định. Nếu thời gian ít hơn, giữ thứ tự dependency và giảm scope P2 trước.
+Role Admin, reset mật khẩu, xác minh email, pipeline ảnh đơn lẻ, OCR text toàn trang, collaborative editing, SLA production. Muốn đưa mục nào vào phải quyết định ở **D-01** (mục 9) trước hết Sprint 2; sau đó mới đổi SRS và lịch này.
 
-| Tuần | Khang | Tuấn Toàn | Mốc cuối tuần |
+### 2.3 Công nghệ và lý do giữ lại
+
+Chỉ giữ công nghệ nằm trong kế hoạch đã duyệt hoặc đã có trong `requirements.txt`/`package.json`/Compose và đang được code dùng. Không thêm thư viện khác khi chưa có quyết định ở mục 9.
+
+| Công nghệ | Vai trò duy nhất trong đồ án |
+|---|---|
+| React + Vite | Giao diện review PDF/công thức |
+| Tailwind CSS | Style giao diện — **có trong kế hoạch đã duyệt, chưa cài**; thay `App.css` ở S4-09 |
+| MathLive | Editor công thức, đồng bộ với textarea LaTeX |
+| FastAPI | API, validation HTTP, enqueue job |
+| SQLAlchemy + Alembic | ORM và migration có phiên bản |
+| PostgreSQL | Nguồn sự thật cho user/document/formula/log |
+| Redis + RQ | Điều phối job nền; không lưu kết quả chính |
+| PyMuPDF + Pillow | Render trang PDF, cắt crop theo bbox |
+| Pix2Text MFD | Đề xuất vùng công thức |
+| pix2tex | Nhận dạng crop → `latex_raw` |
+| Argon2 (argon2-cffi) + PyJWT | Băm mật khẩu, access token trong cookie HttpOnly |
+| Docker Compose | Chạy lại toàn bộ hệ thống trên máy khác |
+| pytest, ESLint | Test backend, lint frontend |
+
+### 2.4 Đối chiếu với kế hoạch đã duyệt
+
+Các ô "Trạng thái" trong file docx đã cũ so với mã nguồn hiện tại. Bảng dưới là hiện trạng đã kiểm tra trong code ngày 2026-11-10.
+
+| Hạng mục đã duyệt | Hiện trạng trong code | Việc còn lại |
+|---|---|---|
+| FR1 đọc PDF, chỉ lấy công thức | Có: PyMuPDF render, Pix2Text MFD detect, crop | Đánh giá chất lượng (S5) |
+| FR2 sửa LaTeX ↔ MathLive hai chiều | Có, nằm trong `App.jsx` | Tách đơn vị theo đúng tên trong docx, test (S4-01…S4-04) |
+| FR3 Submit lưu DB | Có: `POST /formulas/{id}/submit` ghi `latex_final`, ghi log `submit` | Test (S4-04) |
+| Bảng `documents`: `uploaded_by` FK | Đã có FK `ON DELETE SET NULL` (migration `a6b0f1c2d3e4`) | — |
+| `documents.status`, `formula_entries.status` là enum | Vẫn là `String`; giá trị thực tế khác docx (xem dưới) | S3-09 |
+| `users`, `logs` | Đã dùng: đăng ký/đăng nhập; log upload/submit/lịch sử/queue | — |
+| Upload chỉ PDF, giới hạn dung lượng | Có: chỉ `.pdf`, tối đa 100 MB, stream | Số trang, pixel, timeout, validate nội dung (S3-01, S3-02) |
+| `POST /api/documents/{id}/process` trả công thức đồng bộ | Không có; thay bằng xử lý nền: upload tự enqueue, `GET …/formulas`, `POST …/formulas/recognize` (202) | Quyết định D-09 |
+| `services/api.js`, `PDFUploader`, `Preview`, `MathLiveEditor`, `useLatexSync` | Chưa tách; logic trong `App.jsx` | S4-01 |
+| Tailwind CSS | Chưa cài | S4-09 |
+| Xử lý bất đồng bộ (mục 6, tuỳ chọn) | Đã làm bằng Redis + RQ (docx nêu Celery/Redis hoặc BackgroundTasks) | Độ tin cậy S2 |
+| ONNX Runtime (mục 6, tuỳ chọn) | Pix2Text MFD chạy ONNX; GPU/CPU chưa chốt | S2-05 |
+| BLEU / edit-distance (mục 7, 12) | Chưa có | S5-03 |
+| Texo, dots.ocr/GLM-OCR, Mathpix/VLM, WebSocket (mục 6) | Chưa có, ngoài lịch | Quyết định D-10 |
+
+Giá trị trạng thái thực tế trong code (docx ghi `uploaded/processing/done/failed` và `pending/edited/submitted`):
+
+- Document: `processing_pages` → `detecting_formulas` → `formula_proposals_ready` → `ocr_processing` → `ocr_complete` / `ocr_completed_with_errors`; lỗi render là `processing_failed`.
+- Formula: `proposed` → `ocr_queued` → `ocr_complete` / `ocr_failed` → `submitted`.
+
+## 3. Phân công
+
+| Vai trò | Thành viên | Chịu trách nhiệm chính (R/A) | Review (C) |
 |---|---|---|---|
-| 1 | M0; bắt đầu Q-01; xác minh runtime worker/GPU | Kiểm UI hiện tại; chuẩn bị tiêu chí/data manifest; xin PDF hợp lệ | Stack/queue chạy, biết GPU mode thật |
-| 2 | Hoàn tất idempotency/restart; sửa lỗi worker | Thu thập/label PDF; chạy MathLive/font/keyboard/browser checks | Queue ổn định, dataset có ground truth |
-| 3 | Upload limits, cleanup, backend tests; hỗ trợ benchmark | MFD/OCR benchmark, frontend tests, UX fixes | Có report accuracy và regression tests |
-| 4 | Fix blocker integration, setup/ops notes | Traceability, báo cáo, slides/demo script | Demo E2E và handoff hoàn chỉnh |
+| Backend/Platform | Đoàn Trương Duy Khang | API, models/migration, Redis/RQ, worker, PDF/MFD/OCR, Docker/GPU runtime, auth backend, test backend, sơ đồ backend/runtime | Frontend, contract UI, báo cáo phần kỹ thuật |
+| Frontend/QA/Docs | Ngô Hồ Tuấn Toàn | React/MathLive, accessibility, test frontend/browser, bộ PDF và đánh giá accuracy, báo cáo/slides/demo | API, bbox, hành vi persistence, queue |
 
-## 6. Definition of Done
+Quy tắc:
 
-Mỗi task có owner, reviewer, acceptance criteria, test evidence, files/API/schema affected và fallback. OCR phải được người dùng rà. Nếu thiếu PDF/GPU/quyền truy cập, ghi blocker và người cần cung cấp; không thay dữ liệu thật bằng dữ liệu tổng hợp để tuyên bố accuracy.
+- Mỗi task có đúng **một owner**; người còn lại là reviewer. Không merge việc của mình khi chưa có review (nhánh/PR theo [GIT_WORKFLOW](GIT_WORKFLOW.md)).
+- Chốt API/schema/status trước khi hai bên làm song song; đổi contract phải cập nhật SRS/ARCHITECTURE cùng PR.
+- Khang không tự kết luận độ chính xác OCR; Toàn không che lỗi backend bằng state UI.
+- Cả hai cùng ký xác nhận mỗi gate và bản demo cuối.
 
-## 7. Checklist trước demo cuối
+## 4. Lộ trình 12 tuần
 
-- [ ] `docker compose config -q` và toàn bộ services healthy.
-- [ ] Alembic head đúng; dữ liệu smoke test không làm bẩn demo DB.
-- [ ] Redis AOF/worker queue được kiểm tra sau restart.
+```text
+Tuần:        1   2 | 3   4 | 5   6 | 7   8 | 9  10 | 11  12
+Sprint:       S1    |  S2   |  S3   |  S4   |  S5   |  S6
+Trọng tâm:  Nền    | Queue | Bảo   | UI +  | Đánh  | Báo cáo
+            tảng   | + GPU | mật   | test  | giá   | + demo
+Gate:          G1      G2      G3      G4      G5      G6
+Thu thập PDF đánh giá: ======= (song song từ S1) ========
+Feature freeze:                                 ^ cuối S4 (tuần 8)
+```
+
+Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
+
+### Sprint 1 (tuần 1–2) — Nền tảng và chốt contract
+
+| ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
+|---|---|---|---|---|---|
+| S1-01 | Commit sạch các thay đổi đang dở theo nhóm nhỏ; chạy `docker compose config -q`, `up -d --build`, `alembic upgrade head`; health 5 service | Khang | Toàn | 1 | `git status` sạch; `/health` 200; `rq info` thấy worker |
+| S1-02 | Test migration từ DB rỗng và từ DB có dữ liệu cũ | Khang | Toàn | 1 | Ghi lệnh + kết quả vào [DATABASE](DATABASE.md) |
+| S1-03 | Gán ID cho yêu cầu trong SRS, dựng khung ma trận truy vết (mục 7) | Toàn | Khang | 1 | SRS có ID; ma trận có cột test |
+| S1-04 | Xin/thu thập PDF toán được phép dùng; ghi nguồn và quyền sử dụng | Toàn | Khang | 2 | Danh sách nguồn có xác nhận quyền; không commit PDF |
+| S1-05 | Chốt contract từ Swagger: bbox pixel, page từ 1, state transition document/formula | Khang + Toàn | nhau | 1 | ARCHITECTURE/SRS khớp OpenAPI |
+| S1-06 | Xác minh runtime trong worker: `torch.cuda.is_available()`, ONNX providers, inference thật | Khang | Toàn | 1 | Log provider; không dùng `nvidia-smi` làm bằng chứng |
+| S1-07 | Smoke test upload mới bằng PDF được phép | Toàn | Khang | 0.5 | Upload → bbox → OCR → Submit chạy được |
+
+**Gate G1:** stack chạy từ clone sạch; contract khóa; biết GPU hay CPU; có ít nhất 1 PDF hợp lệ.
+
+### Sprint 2 (tuần 3–4) — Độ tin cậy hàng đợi và GPU/CPU
+
+| ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
+|---|---|---|---|---|---|
+| S2-01 | Chống enqueue kép recognize/retry bằng row lock/idempotency | Khang | Toàn | 2 | Test: 2 request đồng thời chỉ tạo 1 job hợp lệ |
+| S2-02 | Redis không nhận job → khôi phục state hoặc trả lỗi retryable | Khang | Toàn | 1.5 | Test API với Redis giả lỗi |
+| S2-03 | Timeout/retry/failure visibility; phục hồi formula `ocr_queued` treo khi worker chết | Khang | Toàn | 2 | Test worker restart; không còn state mơ hồ |
+| S2-04 | Kiểm Redis AOF/volume khi restart Redis/backend/worker | Khang | Toàn | 1 | Biên bản drill ghi trong SETUP |
+| S2-05 | Chọn cấu hình suy luận: ONNX CUDA, `MATH_DETECTOR_BACKEND=pytorch` trên CUDA, hoặc CPU fallback có giới hạn rõ | Khang | Toàn | 1.5 | Bảng latency/VRAM/RAM thật; cấu hình chốt trong Compose |
+| S2-06 | Ma trận test lỗi (Redis down, OCR exception, PDF hỏng) và UI states queued/failed/retry | Toàn | Khang | 2 | Test matrix; UI hiển thị đúng từng trạng thái |
+| S2-07 | Tạo `backend/tests/worker/` | Khang | Toàn | 1 | Chạy được bằng lệnh trong tests/README |
+
+**Gate G2:** queue an toàn khi lặp/restart; GPU/CPU chốt bằng bằng chứng; **D-01 đã được quyết định**.
+
+### Sprint 3 (tuần 5–6) — Bảo mật, giới hạn và vòng đời dữ liệu
+
+| ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
+|---|---|---|---|---|---|
+| S3-01 | Giới hạn upload: bytes (đã có 100 MB), số trang, pixel, timeout xử lý | Khang | Toàn | 1.5 | Lỗi thân thiện, có test |
+| S3-02 | Validate nội dung PDF: mã hóa, hỏng, tên file/path abuse | Khang | Toàn | 1.5 | Test fixture synthetic |
+| S3-03 | Retention/cleanup: source, pages, crops, job lỗi, file mồ côi | Khang | Toàn | 2 | Chính sách ghi trong DATABASE; test không xóa dữ liệu hợp lệ |
+| S3-04 | Hardening auth: rate limit đăng nhập (**D-03**), policy đổi `AUTH_SECRET`, cookie Secure/CSRF dưới HTTPS, hết phiên | Khang | Toàn | 2 | Test + ghi trong ARCHITECTURE |
+| S3-05 | Quy trình chuyển owner cho document cũ `uploaded_by IS NULL` (**D-07**) | Khang | Toàn | 0.5 | Quy tắc ghi trong DATABASE |
+| S3-06 | Dọn code backend: tách `api/documents.py` (562 dòng) thành router mỏng + service; không đổi contract | Khang | Toàn | 2 | Test hiện có vẫn pass; diff chỉ di chuyển/tách |
+| S3-07 | UX lỗi giới hạn upload, hết phiên, đăng nhập/đăng ký | Toàn | Khang | 1.5 | Browser check |
+| S3-08 | Chọn test runner frontend (**D-02**) và dựng khung | Toàn | Khang | 1 | `npm test` chạy được, ghi vào frontend/tests/README |
+| S3-09 | Ràng buộc `status` theo kế hoạch đã duyệt (enum hoặc CHECK constraint) cho `documents` và `formula_entries`; migration mới, backfill giá trị hiện có | Khang | Toàn | 1.5 | Migration chạy trên DB rỗng và DB có dữ liệu; giá trị lạ bị DB từ chối |
+
+**Gate G3:** upload độc hại/hỏng bị từ chối có thông báo; cleanup an toàn; backend test suite pass.
+
+### Sprint 4 (tuần 7–8) — Hoàn thiện giao diện và kiểm thử → **Feature freeze**
+
+| ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
+|---|---|---|---|---|---|
+| S4-01 | Dọn code frontend: tách `App.jsx` (688 dòng) thành `services/api.js`, `PDFUploader`, `Preview`, `MathLiveEditor`, `hooks/useLatexSync` (tên theo kế hoạch đã duyệt; **một state LaTeX duy nhất** làm nguồn chân lý) | Toàn | Khang | 2.5 | Hành vi không đổi; build + lint pass |
+| S4-02 | Test LaTeX ↔ MathLive: phân số, căn, ma trận, Greek, cú pháp lỗi | Toàn | Khang | 1.5 | Test tự động |
+| S4-03 | Test overlay: pointer, Tab/arrows/Alt+arrows/Shift 10 px, bounds | Toàn | Khang | 2 | Test + checklist keyboard-only |
+| S4-04 | Test luồng document: upload, polling, OCR thành công/lỗi/retry, Submit, reload raw/final | Toàn | Khang | 2 | Test + bằng chứng `latex_raw` không đổi |
+| S4-05 | UI lịch sử: mở/xóa/tải PDF/export `.tex`, trạng thái rỗng/lỗi | Toàn | Khang | 1.5 | Browser check |
+| S4-06 | Font MathLive local sau build/restart (WOFF2 200, không lỗi console); kiểm tra mobile/touch | Toàn | Khang | 1 | Biên bản desktop + mobile |
+| S4-07 | Bổ sung test backend cho schemas/bounds/state/API còn thiếu | Khang | Toàn | 2 | Báo cáo test chạy được bằng lệnh tài liệu hóa |
+| S4-08 | Review chéo contract API ↔ UI; sửa lệch | Khang + Toàn | nhau | 1 | Không còn khác biệt SRS/code |
+| S4-09 | Cài Tailwind CSS và chuyển style từ `App.css` (719 dòng) sang Tailwind; chỉ làm sau S4-01 | Toàn | Khang | 3 | Giao diện không đổi hành vi; keyboard focus/contrast còn đúng; `npm run build` + `lint` pass |
+| S4-10 | Bắt lỗi MathLive không parse được LaTeX: hiện cảnh báo, không crash trang (rủi ro đã duyệt) | Toàn | Khang | 0.5 | Test với cú pháp lỗi |
+
+**Gate G4 (feature freeze):** FR0–FR4 chạy end-to-end; backend + frontend test pass; lint/build pass; từ đây không thêm chức năng.
+
+### Sprint 5 (tuần 9–10) — Đánh giá chất lượng
+
+| ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
+|---|---|---|---|---|---|
+| S5-01 | Manifest dữ liệu: mã tài liệu, số trang, loại (scan/vector/nhiều cột/inline/display), số bbox & LaTeX chuẩn đã review | Toàn | Khang | 3 | Manifest có provenance/quyền dùng |
+| S5-02 | Đo detector: precision/recall theo IoU đã chọn | Toàn | Khang | 2 | Script/ghi chú tái lập |
+| S5-03 | Đo OCR: exact match, edit distance, BLEU giữa `latex_raw` và `latex_final` (hoặc LaTeX chuẩn) trên crop chuẩn | Toàn | Khang | 2 | Bảng kết quả |
+| S5-04 | Đo latency cold/warm, RAM/VRAM, tỉ lệ lỗi theo cấu hình đã chốt ở S2-05 | Khang | Toàn | 2 | Bảng đo thật |
+| S5-05 | Tổng hợp ví dụ OCR sai và giới hạn; ngưỡng chấp nhận (**D-04**) | Toàn | Khang | 1 | Mục "Hạn chế" cho báo cáo |
+| S5-06 | Sửa lỗi blocker có bằng chứng từ đánh giá (không thêm chức năng) | Khang | Toàn | 2 | PR nhỏ, test hồi quy |
+
+**Gate G5:** báo cáo đánh giá tái lập được. Không tuyên bố accuracy nếu chưa có dữ liệu phù hợp.
+
+### Sprint 6 (tuần 11–12) — Báo cáo, demo, bảo vệ
+
+| ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |
+|---|---|---|---|---|---|
+| S6-01 | Báo cáo đồ án theo mẫu của khoa (**D-05**); chương phân tích/kiến trúc/triển khai | Toàn | Khang | 5 | Bản nháp đủ chương |
+| S6-02 | Sơ đồ: use case, kiến trúc, sequence upload→OCR→Submit, ER, triển khai | Khang | Toàn | 2 | Khớp code và ARCHITECTURE |
+| S6-03 | Ma trận truy vết SRS → code → test (mục 7) hoàn chỉnh | Toàn | Khang | 1.5 | Không còn yêu cầu thiếu test |
+| S6-04 | Slides và kịch bản demo (PDF được phép dùng) | Toàn | Khang | 2 | Script demo từng bước |
+| S6-05 | Setup/runbook: người khác clone và chạy được từ README/SETUP | Khang | Toàn | 1.5 | Thành viên còn lại tự chạy thành công |
+| S6-06 | Tag phiên bản nộp; kiểm tra không có secret/upload/weights trong Git | Khang | Toàn | 0.5 | `git ls-files` sạch |
+| S6-07 | Diễn tập bảo vệ ≥ 2 lần; danh sách câu hỏi dự kiến và hạn chế | Khang + Toàn | nhau | 1.5 | Biên bản diễn tập |
+| S6-08 | Dự phòng sửa lỗi/chỉnh báo cáo | Khang + Toàn | nhau | 3 | — |
+
+**Gate G6 = điểm dừng đồ án.** Chi tiết ở mục 8.
+
+## 5. Quy trình hằng tuần
+
+- Đầu tuần: chọn task từ sprint, xác nhận owner/reviewer. Giữa tuần: đồng bộ blocker 15 phút. Cuối tuần: demo nội bộ và cập nhật trạng thái task.
+- Mỗi PR một luồng nhỏ, ghi FR, test đã chạy, migration (nếu có), ảnh UI (nếu đổi UX) — theo [GIT_WORKFLOW](GIT_WORKFLOW.md) và [CONTRIBUTING](CONTRIBUTING.md).
+- Đổi phạm vi: ghi vào mục 9, hai thành viên đồng ý rồi mới sửa SRS và lịch.
+
+## 6. Rủi ro
+
+| Rủi ro | Ảnh hưởng | Giảm thiểu | Owner |
+|---|---|---|---|
+| Thiếu PDF có quyền dùng | Không đo được accuracy | Bắt đầu xin từ S1-04; nếu thiếu, báo cáo ghi rõ chưa có dataset, không dùng dữ liệu tổng hợp để kết luận accuracy | Toàn |
+| GPU/ONNX CUDA không chạy | Chậm | S2-05; CPU fallback có giới hạn rõ, đo latency thật | Khang |
+| OCR sai công thức phức tạp | Chất lượng | Giữ bước người dùng rà; ghi ví dụ sai ở S5-05 | Toàn |
+| Pix2Text/pix2tex tải model chậm/lần đầu | Demo lỗi | Ghi cold/warm latency; chạy warm-up trước demo | Khang |
+| Một người nghỉ/quá tải | Trễ gate | Mỗi task có reviewer biết ngữ cảnh; S6-08 là buffer | Cả hai |
+| Đổi contract muộn | Vỡ UI/test | Contract khóa ở G1; đổi phải cập nhật SRS cùng PR | Cả hai |
+
+## 7. Ma trận truy vết (khung, hoàn thiện ở S1-03 và S6-03)
+
+| Yêu cầu | Task | Test dự kiến |
+|---|---|---|
+| FR0 | S3-04, S3-07 | `tests/api/test_auth_api.py`, `tests/unit/test_security.py`, UI auth |
+| FR1 | S2-01…S2-07, S3-01…S3-03 | `tests/worker/`, `tests/api/`, pipeline PDF nhiều trang/rỗng/hỏng |
+| FR2 | S4-01, S4-02, S4-03, S4-06, S4-09, S4-10 | Test frontend editor + overlay, browser keyboard/mobile |
+| FR3 | S4-04 | API submit + UI reload raw/final |
+| FR4 | S3-03, S4-05 | `tests/api/test_document_history.py`, UI lịch sử |
+| NFR | S1-02, S1-06, S2-04, S2-05, S5-01…S5-05 | Migration drill, provider log, restart drill, báo cáo đánh giá |
+
+## 8. Definition of Done của đồ án (điểm dừng)
+
+Đồ án hoàn thành khi **tất cả** điều kiện sau đúng:
+
+1. FR0–FR4 chạy end-to-end từ clone sạch bằng README/SETUP; phạm vi ngoài SRS §5 không được tuyên bố là đã có. Mọi hạng mục bắt buộc của kế hoạch đã duyệt (mục 2.4, trừ nhóm tuỳ chọn D-10) đều xong hoặc có sai khác được ghi rõ trong báo cáo.
+2. `docker compose config -q` pass, 5 service healthy, Alembic ở head, migration kiểm thử từ DB rỗng và DB có dữ liệu.
+3. Queue an toàn: enqueue kép, Redis lỗi, worker restart, OCR exception đều có hành vi được test.
+4. Chế độ GPU hoặc CPU được chứng minh bằng provider + inference trong worker, ghi rõ trong báo cáo.
+5. `latex_raw` không bao giờ bị ghi đè; `latex_final` chỉ đổi qua Submit; có test.
+6. Test backend và frontend chạy bằng lệnh tài liệu hóa và pass; `npm run build` + `npm run lint` pass.
+7. Báo cáo đánh giá detector/OCR trên dữ liệu có quyền dùng, nêu metric, lỗi phổ biến và hạn chế; không che công thức sai.
+8. Ma trận truy vết không có yêu cầu thiếu code/test.
+9. Báo cáo, slides, kịch bản demo hoàn tất; cả hai thành viên đã diễn tập ≥ 2 lần.
+10. Git không chứa secret, upload, model weights, `.venv`, `node_modules`, `dist`.
+
+## 9. Quyết định cần chủ dự án xác nhận
+
+Không tự chọn các mục dưới đây. Trạng thái mặc định được ghi để lịch vẫn chạy được.
+
+| ID | Câu hỏi | Mặc định khi chưa quyết | Hạn |
+|---|---|---|---|
+| D-01 | Có đưa Role Admin, reset mật khẩu/xác minh email, upload ảnh đơn lẻ vào phạm vi? | Không (giữ ngoài phạm vi) | Hết S2 |
+| D-09 | Kế hoạch đã duyệt ghi `POST /documents/{id}/process` đồng bộ; code dùng xử lý nền. Giữ code hiện tại và cập nhật contract trong tài liệu nộp, hay thêm endpoint `/process` tương thích? | Giữ code hiện tại; ghi chú sai khác ở báo cáo | Hết S1 |
+| D-10 | Có làm hướng mở rộng tuỳ chọn (Texo, dots.ocr/GLM-OCR, Mathpix/VLM làm backend thứ hai, WebSocket tiến trình) không? Mỗi mục cần quyết định riêng và kiểm chứng tính khả thi trước khi vào lịch | Không làm | Hết S3 |
+| D-02 | Test runner frontend nào? | Chưa chọn; dùng checklist thủ công cho tới khi chốt | Đầu S3 |
+| D-03 | Cách rate limit đăng nhập (thư viện hay tự viết)? | Chưa thêm dependency | Đầu S3 |
+| D-04 | Ngưỡng accuracy/IoU chấp nhận được? | Chỉ báo cáo số đo, không đặt ngưỡng | Đầu S5 |
+| D-05 | Cấu trúc/mẫu báo cáo của khoa | Chưa có; chương đề xuất ở S6-01 phải đối chiếu mẫu | Đầu S5 |
+| D-06 | Demo chỉ chạy local Compose hay cần server demo? | Chỉ local Compose | Đầu S5 |
+| D-07 | Document cũ `uploaded_by IS NULL` xử lý thế nào? | Không hiện cho ai | Đầu S3 |
+| D-08 | MSSV, lớp/môn, GVHD, nhóm trưởng, ngày nộp | Để trống trong TEAM | Sớm nhất |
+
+## 10. Checklist trước bảo vệ
+
+- [ ] `docker compose config -q`; toàn bộ service healthy; Alembic head đúng.
+- [ ] Dữ liệu smoke test không làm bẩn DB demo.
+- [ ] Redis AOF/queue kiểm tra sau restart.
 - [ ] GPU inference pass hoặc CPU fallback được ghi rõ.
-- [ ] PDF nhiều trang hợp lệ chạy hết render/detect/OCR.
+- [ ] PDF nhiều trang hợp lệ chạy hết render/detect/OCR; trường hợp hỏng/mã hóa bị từ chối đúng.
 - [ ] Bbox pointer + keyboard và crop refresh hoạt động.
-- [ ] MathLive font/2-way sync pass.
-- [ ] Submit chỉ sửa `latex_final`; `latex_raw` vẫn nguyên.
-- [ ] Retry/failure path và test suite chạy.
-- [ ] Báo cáo, TEAM metadata và hướng dẫn demo được cả hai review.
+- [ ] MathLive font local và đồng bộ hai chiều pass.
+- [ ] Submit chỉ sửa `latex_final`; `latex_raw` nguyên; export `.tex` đúng nội dung đã Submit.
+- [ ] Retry/failure path và toàn bộ test suite chạy.
+- [ ] Báo cáo, slides, demo script, TEAM metadata được cả hai review.
+- [ ] Máy demo đã warm-up model; có video dự phòng nếu runtime lỗi.

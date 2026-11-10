@@ -50,13 +50,28 @@
 
 **Acceptance:** chưa OCR thì Submit bị từ chối; lỗi API không hiển thị đã lưu; resubmit có behavior nhất quán.
 
+### FR4 — Lịch sử tải lên và xuất kết quả
+
+1. Người dùng xem danh sách document của mình (mới nhất trước, có phân trang), mở lại, xóa.
+2. Tải lại PDF gốc.
+3. Xuất file `.tex` chỉ gồm công thức đã Submit (`latex_final`).
+4. Không cho xóa document đang `processing_pages`, `detecting_formulas` hoặc `ocr_processing`.
+
+**Acceptance:** user A không thấy/xóa/tải document của user B; export không chứa `latex_raw`; export khi chưa Submit trả lỗi rõ; xóa dọn cả bản ghi database và thư mục file.
+
 ## 4. Non-functional requirements
 
-- PostgreSQL giữ metadata/LaTeX; filesystem/object storage giữ file; Redis giữ queue state.
-- Mọi schema change có Alembic revision mới.
-- GPU là tùy chọn; kiểm tra provider và inference thật. CPU fallback phải rõ ràng.
-- Đánh giá accuracy trên PDF đại diện có quyền sử dụng; ghi rõ dataset/metric.
-- Không ghi credentials hoặc nội dung nhạy cảm vào log.
+| ID | Yêu cầu |
+|---|---|
+| NFR-01 | PostgreSQL giữ metadata/LaTeX; filesystem/object storage giữ file; Redis giữ queue state. |
+| NFR-02 | Mọi schema change có Alembic revision mới; migration kiểm thử từ DB rỗng và DB có dữ liệu. |
+| NFR-03 | GPU là tùy chọn; kiểm tra provider và inference thật. CPU fallback phải rõ ràng. |
+| NFR-04 | Đánh giá accuracy trên PDF đại diện có quyền sử dụng; ghi rõ dataset/metric. |
+| NFR-05 | Không ghi credentials hoặc nội dung nhạy cảm vào log. |
+| NFR-06 | Queue an toàn: không enqueue kép, job retry-safe, có timeout và cách phục hồi `ocr_queued` bị treo. |
+| NFR-07 | Upload có giới hạn server-side (kích thước, số trang, pixel, timeout) và validate nội dung PDF. |
+
+Kế hoạch thực hiện và truy vết từng ID: [PHAN_CONG_CONG_VIEC](PHAN_CONG_CONG_VIEC.md).
 
 ## 5. Ngoài phạm vi/chưa nghiệm thu
 

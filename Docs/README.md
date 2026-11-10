@@ -14,7 +14,7 @@ Mỗi chủ đề có một nguồn chuẩn; tài liệu khác nên liên kết 
 | Chất lượng/review | [CONTRIBUTING](CONTRIBUTING.md) |
 | Branch/commit/PR | [GIT_WORKFLOW](GIT_WORKFLOW.md) |
 | Thành viên/vai trò | [TEAM](TEAM.md) |
-| Backlog/phân công | [PHAN_CONG_CONG_VIEC](PHAN_CONG_CONG_VIEC.md) |
+| Kế hoạch đồ án/phân công | [PHAN_CONG_CONG_VIEC](PHAN_CONG_CONG_VIEC.md) |
 | Backend | [BACKEND_GUIDE](modules/BACKEND_GUIDE.md) |
 | Frontend | [FRONTEND_GUIDE](modules/FRONTEND_GUIDE.md) |
 
