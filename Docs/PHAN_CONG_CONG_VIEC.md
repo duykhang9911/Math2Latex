@@ -223,6 +223,13 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 **Gate G5:** báo cáo đánh giá tái lập được. Không tuyên bố accuracy nếu chưa có dữ liệu phù hợp.
 
+**Tiến độ Sprint 5 — phần của Khang (cập nhật 2026-11-10):**
+
+| Task | Trạng thái |
+|---|---|
+| S5-04 | Xong bằng cấu hình CPU đã chốt: latency cold/warm, RAM, tỉ lệ lỗi vận hành trên 4 lần chạy thật (558 vùng, 0 lỗi); bảng ở [ARCHITECTURE](ARCHITECTURE.md). Chưa đo VRAM vì chưa có GPU |
+| S5-06 | Chưa làm: cần kết quả đánh giá của S5-01…S5-03 (Toàn) để biết lỗi nào đáng sửa |
+| S5-01, S5-02, S5-03, S5-05 | Việc của Toàn, chưa làm |
 ### Sprint 6 (tuần 11–12) — Báo cáo, demo, bảo vệ
 
 | ID | Task | Owner | Reviewer | PD | Sản phẩm/nghiệm thu |

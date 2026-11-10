@@ -89,6 +89,22 @@ Chưa có GPU trong Docker trên máy phát triển (không `nvidia-smi`, `cuda_
 
 Số liệu là một lần đo trên một máy, không phải benchmark; dùng để đặt kỳ vọng và thiết lập timeout (job timeout hiện 7200 s). Khi có máy GPU, bật `gpus: all` và `MATH_DETECTOR_DEVICE=cuda`, kiểm tra provider rồi đo lại bằng cùng cách; chỉ chuyển cấu hình khi số đo tốt hơn và inference thật chạy trong worker.
 
+### Đo trên dữ liệu thật (S5-04, CPU, 2026-11-10)
+
+Upload lần lượt các PDF trong [DATASET](DATASET.md) qua API bằng tài khoản tạm, worker vừa khởi động lại (lượt đầu là cold), CPU, đo end-to-end bằng đồng hồ client (gồm render và polling mỗi 2 giây, nên cao hơn số đo model thuần ở trên):
+
+| File | Trang | Detect (cả render) | Vùng | OCR | OCR/công thức | Công thức `ocr_failed` | `latex_raw` rỗng |
+|---|---|---|---|---|---|---|---|
+| `2017-MathMethods1.pdf` (cold) | 15 | 30,7 s (2,04 s/trang) | 130 | 43,4 s | 0,33 s | 0 | 0 |
+| `2025-MathMethods1.pdf` | 20 | 49,1 s (2,46 s/trang) | 142 | 58,9 s | 0,41 s | 0 | 0 |
+| `de-chinh-thuc-…-lan-2-mon-toan.pdf` | 3 | 14,5 s (4,85 s/trang) | 156 | 45,6 s | 0,29 s | 0 | 0 |
+| `2017-MathMethods1.pdf` (warm, lặp lại) | 15 | 18,8 s (1,26 s/trang) | 130 | 39,4 s | 0,30 s | 0 | 0 |
+
+- Cold so với warm cùng file: detect 30,7 s → 18,8 s (nạp model lượt đầu).
+- Bộ nhớ container worker (lấy mẫu `docker stats` mỗi ~10 s, nên có thể bỏ lỡ đỉnh): thường 0,25–0,95 GiB, đỉnh quan sát 1,43 GiB.
+- 4 lần chạy, 558 vùng: không document nào `processing_failed`, không công thức nào `ocr_failed`, không `latex_raw` rỗng. Đây là tỉ lệ **lỗi vận hành** của pipeline; không nói gì về độ chính xác LaTeX (cần đáp án chuẩn của S5-01).
+- Số vùng của `2025-MathMethods1.pdf` (142) khác lần upload cũ trong database (107): lần cũ chạy trước khi ghim `rapidocr` và có thể đã được sửa tay; đây là lý do manifest S5-01 phải ghi rõ `document_id` chuẩn.
+- Chưa có số đo VRAM/GPU (không có GPU trong Docker trên máy này).
 ### Phục hồi job (S2-03, S2-04)
 
 - Mọi job đưa vào RQ kèm `on_failure` (`mark_pdf_job_failed`, `mark_ocr_job_failed`). RQ gọi callback khi job ném lỗi, quá timeout hoặc bị bỏ rơi vì worker chết.
