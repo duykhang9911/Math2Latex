@@ -157,3 +157,4 @@ docker compose up -d
 
 ### Bước 9: Đăng xuất (10s)
 - Click "Đăng xuất" → về trang login
+

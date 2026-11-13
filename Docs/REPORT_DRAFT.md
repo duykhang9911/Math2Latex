@@ -269,3 +269,4 @@ Frontend hiển thị thông báo cụ thể cho từng mã lỗi:
 4. Tích hợp LLM (GPT/Gemini) cho post-correction
 5. Collaborative editing (nhiều người cùng review)
 6. Export sang nhiều định dạng (Markdown, Word)
+

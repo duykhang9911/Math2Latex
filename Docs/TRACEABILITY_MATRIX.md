@@ -80,3 +80,4 @@ Ma trận này truy vết từ yêu cầu SRS (FR/NFR) → module mã nguồn �
 | Backend test files | 18 files, 182+ tests |
 | Frontend test files | 3 files, 60 tests |
 | Khoảng trống còn lại | NFR-02 (migration drill), NFR-03 (GPU check), NFR-04 (cần submitted data) |
+
