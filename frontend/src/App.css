@@ -110,7 +110,6 @@
   line-height: 1.55;
 }
 
-/* Upload form — migrated to Tailwind inline in PDFUploader.jsx */
 
 .primary-button,
 .dark-button,
@@ -573,10 +572,6 @@
     padding-top: 42px;
   }
 
-  .upload-form {
-    max-width: 570px;
-  }
-
   .page-review-body {
     grid-template-columns: 1fr;
   }
@@ -597,10 +592,6 @@
 
   .intro h1 {
     font-size: 43px;
-  }
-
-  .upload-form {
-    grid-template-columns: 1fr;
   }
 
   .document-heading {
@@ -733,11 +724,10 @@
   border-color: var(--green);
   color: var(--green);
 }
-/* History section — partially migrated to Tailwind inline in HistoryPanel.jsx */
+/* History section */
 .history-section {
   padding-top: 32px;
 }
-/* history-open, history-name, history-meta — migrated to Tailwind inline in HistoryPanel.jsx */
 
 .text-button:disabled {
   color: var(--muted);
@@ -747,10 +737,4 @@
 
 .history-delete:not(:disabled) {
   color: #bf5a48;
-}
-
-@media (max-width: 850px) {
-  .history-item {
-    grid-template-columns: 1fr;
-  }
 }

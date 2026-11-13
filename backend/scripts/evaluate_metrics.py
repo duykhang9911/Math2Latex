@@ -12,7 +12,9 @@ Nếu chưa có submitted formulas, script in cảnh báo và thoát.
 import os
 import sys
 import json
-from collections import defaultdict
+import re
+import math
+from collections import defaultdict, Counter
 from difflib import SequenceMatcher
 
 # Add backend to path
@@ -104,8 +106,69 @@ def edit_similarity(raw, final):
 
 
 def sequence_match_ratio(raw, final):
-    """SequenceMatcher ratio (similar to BLEU-like overlap)."""
+    """SequenceMatcher ratio (character-level overlap)."""
     return SequenceMatcher(None, normalize_latex(raw), normalize_latex(final)).ratio()
+
+
+def tokenize_latex(s):
+    """Tokenize LaTeX string into meaningful tokens for BLEU.
+
+    Splits on: commands (\\frac, \\alpha), braces, operators, digits, letters.
+    Example: '\\frac{a}{b}' -> ['\\frac', '{', 'a', '}', '{', 'b', '}']
+    """
+    s = normalize_latex(s)
+    # Match LaTeX commands, numbers, individual chars
+    tokens = re.findall(r'\\[a-zA-Z]+|\\.|[0-9]+|[a-zA-Z]|[{}()\[\]^_&|+\-=<>,;:!]|\S', s)
+    return tokens
+
+
+def ngram_counts(tokens, n):
+    """Count n-grams in token list."""
+    counts = Counter()
+    for i in range(len(tokens) - n + 1):
+        ngram = tuple(tokens[i:i + n])
+        counts[ngram] += 1
+    return counts
+
+
+def bleu_score(raw, final, max_n=4):
+    """Compute corpus-style BLEU score between raw (hypothesis) and final (reference).
+
+    Uses modified precision with brevity penalty, n-grams up to max_n.
+    Returns a score between 0 and 1.
+    """
+    hyp_tokens = tokenize_latex(raw)
+    ref_tokens = tokenize_latex(final)
+
+    if not hyp_tokens or not ref_tokens:
+        return 0.0
+
+    # Brevity penalty
+    bp = min(1.0, math.exp(1 - len(ref_tokens) / len(hyp_tokens))) if len(hyp_tokens) > 0 else 0.0
+
+    log_avg = 0.0
+    effective_n = 0
+    for n in range(1, max_n + 1):
+        hyp_ngrams = ngram_counts(hyp_tokens, n)
+        ref_ngrams = ngram_counts(ref_tokens, n)
+
+        if not hyp_ngrams:
+            break
+
+        # Clipped counts
+        clipped = sum(min(hyp_ngrams[ng], ref_ngrams.get(ng, 0)) for ng in hyp_ngrams)
+        total = sum(hyp_ngrams.values())
+
+        if clipped == 0:
+            return 0.0  # Any zero precision -> BLEU = 0
+
+        log_avg += math.log(clipped / total)
+        effective_n += 1
+
+    if effective_n == 0:
+        return 0.0
+
+    return bp * math.exp(log_avg / effective_n)
 
 
 def compute_ocr_metrics(formulas):
@@ -117,6 +180,7 @@ def compute_ocr_metrics(formulas):
     exact = sum(exact_match(f["latex_raw"], f["latex_final"]) for f in formulas)
     edit_sims = [edit_similarity(f["latex_raw"], f["latex_final"]) for f in formulas]
     seq_ratios = [sequence_match_ratio(f["latex_raw"], f["latex_final"]) for f in formulas]
+    bleu_scores = [bleu_score(f["latex_raw"], f["latex_final"]) for f in formulas]
 
     return {
         "total_formulas": total,
@@ -124,8 +188,11 @@ def compute_ocr_metrics(formulas):
         "exact_match_rate": round(exact / total, 4),
         "avg_edit_similarity": round(sum(edit_sims) / total, 4),
         "avg_sequence_ratio": round(sum(seq_ratios) / total, 4),
+        "avg_bleu": round(sum(bleu_scores) / total, 4),
         "min_edit_similarity": round(min(edit_sims), 4),
         "max_edit_similarity": round(max(edit_sims), 4),
+        "min_bleu": round(min(bleu_scores), 4),
+        "max_bleu": round(max(bleu_scores), 4),
     }
 
 
@@ -202,7 +269,9 @@ def main():
     print(f"  Exact match:                {overall['exact_match_count']}/{overall['total_formulas']} ({overall['exact_match_rate']:.2%})")
     print(f"  Avg edit similarity:        {overall['avg_edit_similarity']:.4f}")
     print(f"  Avg sequence ratio:         {overall['avg_sequence_ratio']:.4f}")
+    print(f"  Avg BLEU (token 4-gram):    {overall['avg_bleu']:.4f}")
     print(f"  Min/Max edit similarity:    {overall['min_edit_similarity']:.4f} / {overall['max_edit_similarity']:.4f}")
+    print(f"  Min/Max BLEU:               {overall['min_bleu']:.4f} / {overall['max_bleu']:.4f}")
 
     per_doc = compute_per_document_metrics(formulas)
     if len(per_doc) > 1:
@@ -210,7 +279,7 @@ def main():
         for filename, metrics in per_doc.items():
             print(f"\n  {filename}:")
             print(f"    N={metrics['total_formulas']}, exact={metrics['exact_match_rate']:.2%}, "
-                  f"edit_sim={metrics['avg_edit_similarity']:.4f}, seq_ratio={metrics['avg_sequence_ratio']:.4f}")
+                  f"edit_sim={metrics['avg_edit_similarity']:.4f}, bleu={metrics['avg_bleu']:.4f}")
 
     # --- S5-05: Examples of OCR errors ---
     print("\n--- VÍ DỤ OCR SAI (S5-05) ---")
