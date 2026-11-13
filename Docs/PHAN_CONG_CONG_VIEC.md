@@ -267,9 +267,9 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S5-04 | Xong bằng cấu hình CPU đã chốt: latency cold/warm, RAM, tỉ lệ lỗi vận hành trên 4 lần chạy thật (558 vùng, 0 lỗi); bảng ở [ARCHITECTURE](ARCHITECTURE.md). Chưa đo VRAM vì chưa có GPU |
 | S5-06 | Chưa làm: cần kết quả đánh giá của S5-01…S5-03 (Toàn) để biết lỗi nào đáng sửa |
 | S5-01 | Xong 2026-11-13: [EVALUATION_MANIFEST.md](EVALUATION_MANIFEST.md) — manifest với provenance, document ID, phân loại (scan/vector/inline/display), hạn chế |
-| S5-02 | Xong 2026-11-13: `backend/scripts/evaluate_metrics.py` — đo detector precision/recall theo IoU; chạy thành công nhưng cần ground truth (Submit) để có số liệu |
-| S5-03 | Xong 2026-11-13: cùng script `evaluate_metrics.py` — đo OCR exact match, edit distance, sequence ratio; chưa có `latex_final` submitted nên kết quả = 0 |
-| S5-05 | Xong 2026-11-13: script có mục tổng hợp ví dụ OCR sai (error examples) và giới hạn |
+| S5-02 | Xong 2026-11-13: `backend/scripts/evaluate_metrics.py` — detector stats (detected/submitted ratio proxy); IoU precision/recall cần bbox ground truth thủ công. Chạy thành công: 3418 detected, 502 submitted (14.69%) |
+| S5-03 | Xong 2026-11-13: cùng script — exact match, edit distance (Levenshtein), sequence ratio, **BLEU token 4-gram** (thêm 2026-11-13). Kết quả 502 formulas: exact match 100%, BLEU 1.0 (user accept raw as-is) |
+| S5-05 | Xong 2026-11-13: script tổng hợp ví dụ OCR sai (edit similarity < ngưỡng). Hiện 0 lỗi vì user chấp nhận raw; cần review thủ công thêm để phát hiện lỗi OCR |
 ### Sprint 6 (tuần 11–12) — Báo cáo, demo, bảo vệ
 
 **Phân công:** Khang — S6-02, S6-05, S6-06; Toàn — S6-01, S6-03, S6-04; chung — S6-07, S6-08.

@@ -226,9 +226,16 @@ Frontend hiển thị thông báo cụ thể cho từng mã lỗi:
 **OCR (pix2tex):**
 - Cold start ~8s, warm <1s/công thức
 - RAM ~1.5GB
-- Exact match / edit distance cần dữ liệu submitted (xem `evaluate_metrics.py`)
+- Kết quả trên 502 công thức submitted:
 
-**Hạn chế:** Chưa có ground truth đã review thủ công nên chưa tính được precision/recall/exact-match chính thức.
+| Metric | Giá trị |
+|---|---|
+| Exact match | 502/502 (100%) |
+| Avg edit similarity | 1.0000 |
+| Avg BLEU (token 4-gram) | 1.0000 |
+| Detector submitted/detected | 502/3418 (14.69%) |
+
+**Hạn chế đánh giá:** Kết quả 100% exact match do user chấp nhận `latex_raw` không sửa (submit as-is). Để đánh giá thực tế hơn cần: (1) review thủ công từng công thức và sửa lỗi trước khi Submit, (2) bbox ground truth cho IoU precision/recall. Tập dữ liệu nhỏ (1 PDF chính, 55 trang).
 
 ### 6.4 Latency (S5-04)
 
