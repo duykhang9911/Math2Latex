@@ -13,3 +13,4 @@ frontend/dist/
 # Editor/OS
 .vscode/
 .DS_Store
+evaluation_results.json

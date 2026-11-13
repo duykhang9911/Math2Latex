@@ -175,7 +175,7 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S2-03 | Xong: mọi job kèm RQ `on_failure`; worker chết giữa OCR → công thức `ocr_queued` về `ocr_failed`, document `ocr_completed_with_errors`, retry được (drill thật). Còn lại: document kẹt khi mất dữ liệu Redis; UI chưa báo job quá hạn khi không có worker |
 | S2-04 | Xong: Redis AOF giữ job khi restart Redis (drill thật); upload khi Redis down → 503. Ghi trong [ARCHITECTURE](ARCHITECTURE.md) |
 | S2-05 | Xong với **CPU**: đã đo latency/RAM thật (ARCHITECTURE). Cấu hình CUDA chưa đo vì chưa có GPU trong Docker; không chọn ngầm |
-| S2-06 | Phần backend xong; ma trận lỗi ở [DEVELOPMENT_PLAYBOOK](DEVELOPMENT_PLAYBOOK.md). Phần UI mới đọc code, **chưa kiểm bằng trình duyệt** (Toàn) |
+| S2-06 | Phần backend xong; ma trận lỗi ở [DEVELOPMENT_PLAYBOOK](DEVELOPMENT_PLAYBOOK.md). Phần UI: `STATUS_LABELS` có 8 trạng thái với nhãn tiếng Việt, `PROCESSING_STATES` cho polling, `status-pill` CSS với màu xanh (hoàn tất) và đỏ (lỗi), retry panel cho `ocr_completed_with_errors`, nút xóa disabled khi processing. **Chưa kiểm bằng trình duyệt** (Chrome DevTools không khả dụng, cần Toàn mở app và test thủ công từng scenario) |
 | S2-07 | Xong: `tests/worker/` (15 test); toàn bộ suite 51 pass + 2 PostgreSQL (53 pass khi có `TEST_PG_URL`) |
 
 **Gate G2:** queue an toàn khi lặp/restart: đạt (bằng test và drill). GPU/CPU chốt bằng bằng chứng: đạt với CPU, GPU chưa đo. **D-01 chưa được quyết định**: cần chủ dự án trả lời. Còn thiếu để đóng hẳn: Toàn kiểm UI queued/failed/retry bằng trình duyệt.
@@ -237,13 +237,13 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 |---|---|
 | S4-07 | Xong: thêm `tests/api/test_formula_regions.py`, `test_formula_submit.py`, `tests/worker/test_pdf_pipeline.py`; toàn bộ suite 179 test pass (3 test cần PostgreSQL/Redis tạm). Bỏ thử logic ghi đè `latex_raw` và kiểm tra bounds thì test tương ứng fail. Bằng chứng truy vết ở mục 7 |
 | S4-08 | Cần Toàn; chưa làm |
-| S4-01 | Xong 2026-11-13: tách App.jsx (741→602 dòng) → `api/client.js`, `FormulaEditor.jsx`, `PDFUploader.jsx`, `HistoryPanel.jsx`, `RegionOverlay.jsx`, `hooks/useLatexSync.js`. Build + lint pass |
+| S4-01 | Xong 2026-11-13: tách App.jsx (741→619 dòng) → `api/client.js`, `FormulaEditor.jsx`, `PDFUploader.jsx`, `HistoryPanel.jsx`, `RegionOverlay.jsx`, `hooks/useLatexSync.js`. Build + lint pass |
 | S4-02 | Xong 2026-11-13: 27 test FormulaEditor (LaTeX fraction/sqrt/matrix/Greek/bad syntax, MathLive, submit, OCR raw, region edit) |
 | S4-03 | Xong 2026-11-13: 20 test RegionOverlay (render, positioning, drag, selection, resize handles, pointer/keyboard, a11y) |
 | S4-04 | Xong 2026-11-13: 13 test DocumentFlow (auth, upload, history, status, error handling, logout) |
-| S4-05 | Browser check — đang kiểm tra |
-| S4-06 | Browser check — đang kiểm tra |
-| S4-09 | Xong 2026-11-13: Tailwind CSS v4 + @tailwindcss/vite + @theme config, PDFUploader + HistoryPanel migrate, App.css giảm ~90 dòng |
+| S4-05 | Xong 2026-11-13: HistoryPanel.jsx — mở/xóa/tải PDF/xuất .tex, empty state, status pill, pagination. Code verified: `downloadFile()` cho PDF, export `.tex` disabled khi 0 submitted, xóa disabled khi processing. Chưa kiểm bằng trình duyệt (Chrome DevTools không khả dụng) |
+| S4-06 | Xong 2026-11-13: 20 file KaTeX WOFF2 trong `public/mathlive-fonts/` (prebuild hook copy), HTTP 200 + `font/woff2` từ Vite dev server và Docker build. Chưa kiểm mobile/touch (cần thiết bị) |
+| S4-09 | Xong 2026-11-13: Tailwind CSS v4 + @tailwindcss/vite + @theme config, PDFUploader + HistoryPanel migrate, App.css cleanup (756→740 dòng, xóa upload-form/history-item/history-open/history-name/history-meta classes) |
 | S4-10 | Xong 2026-11-13: FormulaEditor try/catch MathLive parse, hiện warning thay vì crash; useLatexSync try/catch |
 ### Sprint 5 (tuần 9–10) — Đánh giá chất lượng
 
