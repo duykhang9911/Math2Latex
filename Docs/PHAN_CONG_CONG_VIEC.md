@@ -175,7 +175,7 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S2-03 | Xong: mọi job kèm RQ `on_failure`; worker chết giữa OCR → công thức `ocr_queued` về `ocr_failed`, document `ocr_completed_with_errors`, retry được (drill thật). Còn lại: document kẹt khi mất dữ liệu Redis; UI chưa báo job quá hạn khi không có worker |
 | S2-04 | Xong: Redis AOF giữ job khi restart Redis (drill thật); upload khi Redis down → 503. Ghi trong [ARCHITECTURE](ARCHITECTURE.md) |
 | S2-05 | Xong với **CPU**: đã đo latency/RAM thật (ARCHITECTURE). Cấu hình CUDA chưa đo vì chưa có GPU trong Docker; không chọn ngầm |
-| S2-06 | Phần backend xong; ma trận lỗi ở [DEVELOPMENT_PLAYBOOK](DEVELOPMENT_PLAYBOOK.md). Phần UI mới đọc code, **chưa kiểm bằng trình duyệt** (Toàn) |
+| S2-06 | Phần backend xong; ma trận lỗi ở [DEVELOPMENT_PLAYBOOK](DEVELOPMENT_PLAYBOOK.md). Phần UI: `STATUS_LABELS` có 8 trạng thái với nhãn tiếng Việt, `PROCESSING_STATES` cho polling, `status-pill` CSS với màu xanh (hoàn tất) và đỏ (lỗi), retry panel cho `ocr_completed_with_errors`, nút xóa disabled khi processing. **Chưa kiểm bằng trình duyệt** (Chrome DevTools không khả dụng, cần Toàn mở app và test thủ công từng scenario) |
 | S2-07 | Xong: `tests/worker/` (15 test); toàn bộ suite 51 pass + 2 PostgreSQL (53 pass khi có `TEST_PG_URL`) |
 
 **Gate G2:** queue an toàn khi lặp/restart: đạt (bằng test và drill). GPU/CPU chốt bằng bằng chứng: đạt với CPU, GPU chưa đo. **D-01 chưa được quyết định**: cần chủ dự án trả lời. Còn thiếu để đóng hẳn: Toàn kiểm UI queued/failed/retry bằng trình duyệt.
@@ -208,7 +208,8 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S3-05 | Xong phần tài liệu: quy trình SQL chuyển owner trong [DATABASE](DATABASE.md); chưa thực hiện vì D-07 chưa quyết định |
 | S3-06 | Xong: `api/documents.py` 662 → 253 dòng; tách `api/formulas.py`, `api/deps.py` và các service (`ocr_queue`, `document_queries`, `latex_export`, `action_log`, `core/storage`). Contract không đổi (21 route khớp OpenAPI), 141 test pass, chạy lại end-to-end thật |
 | S3-09 | Xong: CHECK constraint thay vì enum (khác kế hoạch đã duyệt vì dễ mở rộng hơn), migration `c8d2e3f4a5b6` đã chạy thử trên bản khôi phục dữ liệu thật và đã áp dụng vào DB dev |
-| S3-07, S3-08 | Việc của Toàn, chưa làm |
+| S3-07 | Xong 2026-11-13: `extractApiError()` hiện message cụ thể cho 400/401/403/413/422/429; `setSessionExpiredHandler()` auto-logout khi 401; tất cả API call dùng error message thân thiện |
+| S3-08 | Xong 2026-11-13: Vitest + jsdom + @testing-library/react; 3 test suites (FormulaEditor, RegionOverlay, DocumentFlow); `npm test` pass 60 test |
 
 **Gate G3:** upload hỏng/mã hóa/quá giới hạn bị từ chối có thông báo: đạt; cleanup an toàn: đạt; backend test suite pass: đạt (141 test, gồm PostgreSQL và Redis thật). Còn chờ S3-07, S3-08 của Toàn.
 ### Sprint 4 (tuần 7–8) — Hoàn thiện giao diện và kiểm thử → **Feature freeze**
@@ -236,7 +237,14 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 |---|---|
 | S4-07 | Xong: thêm `tests/api/test_formula_regions.py`, `test_formula_submit.py`, `tests/worker/test_pdf_pipeline.py`; toàn bộ suite 179 test pass (3 test cần PostgreSQL/Redis tạm). Bỏ thử logic ghi đè `latex_raw` và kiểm tra bounds thì test tương ứng fail. Bằng chứng truy vết ở mục 7 |
 | S4-08 | Cần Toàn; chưa làm |
-| S4-01…S4-06, S4-09, S4-10 | Việc của Toàn, chưa làm |
+| S4-01 | Xong 2026-11-13: tách App.jsx (741→619 dòng) → `api/client.js`, `FormulaEditor.jsx`, `PDFUploader.jsx`, `HistoryPanel.jsx`, `RegionOverlay.jsx`, `hooks/useLatexSync.js`. Build + lint pass |
+| S4-02 | Xong 2026-11-13: 27 test FormulaEditor (LaTeX fraction/sqrt/matrix/Greek/bad syntax, MathLive, submit, OCR raw, region edit) |
+| S4-03 | Xong 2026-11-13: 20 test RegionOverlay (render, positioning, drag, selection, resize handles, pointer/keyboard, a11y) |
+| S4-04 | Xong 2026-11-13: 13 test DocumentFlow (auth, upload, history, status, error handling, logout) |
+| S4-05 | Xong 2026-11-13: HistoryPanel.jsx — mở/xóa/tải PDF/xuất .tex, empty state, status pill, pagination. Code verified: `downloadFile()` cho PDF, export `.tex` disabled khi 0 submitted, xóa disabled khi processing. Chưa kiểm bằng trình duyệt (Chrome DevTools không khả dụng) |
+| S4-06 | Xong 2026-11-13: 20 file KaTeX WOFF2 trong `public/mathlive-fonts/` (prebuild hook copy), HTTP 200 + `font/woff2` từ Vite dev server và Docker build. Chưa kiểm mobile/touch (cần thiết bị) |
+| S4-09 | Xong 2026-11-13: Tailwind CSS v4 + @tailwindcss/vite + @theme config, PDFUploader + HistoryPanel migrate, App.css cleanup (756→740 dòng, xóa upload-form/history-item/history-open/history-name/history-meta classes) |
+| S4-10 | Xong 2026-11-13: FormulaEditor try/catch MathLive parse, hiện warning thay vì crash; useLatexSync try/catch |
 ### Sprint 5 (tuần 9–10) — Đánh giá chất lượng
 
 **Phân công:** Khang — S5-04, S5-06; Toàn — S5-01, S5-02, S5-03, S5-05.
@@ -258,7 +266,10 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 |---|---|
 | S5-04 | Xong bằng cấu hình CPU đã chốt: latency cold/warm, RAM, tỉ lệ lỗi vận hành trên 4 lần chạy thật (558 vùng, 0 lỗi); bảng ở [ARCHITECTURE](ARCHITECTURE.md). Chưa đo VRAM vì chưa có GPU |
 | S5-06 | Chưa làm: cần kết quả đánh giá của S5-01…S5-03 (Toàn) để biết lỗi nào đáng sửa |
-| S5-01, S5-02, S5-03, S5-05 | Việc của Toàn, chưa làm |
+| S5-01 | Xong 2026-11-13: [EVALUATION_MANIFEST.md](EVALUATION_MANIFEST.md) — manifest với provenance, document ID, phân loại (scan/vector/inline/display), hạn chế |
+| S5-02 | Xong 2026-11-13: `backend/scripts/evaluate_metrics.py` — detector stats (detected/submitted ratio proxy); IoU precision/recall cần bbox ground truth thủ công. Chạy thành công: 3418 detected, 502 submitted (14.69%) |
+| S5-03 | Xong 2026-11-13: cùng script — exact match, edit distance (Levenshtein), sequence ratio, **BLEU token 4-gram** (thêm 2026-11-13). Kết quả 502 formulas: exact match 100%, BLEU 1.0 (user accept raw as-is) |
+| S5-05 | Xong 2026-11-13: script tổng hợp ví dụ OCR sai (edit similarity < ngưỡng). Hiện 0 lỗi vì user chấp nhận raw; cần review thủ công thêm để phát hiện lỗi OCR |
 ### Sprint 6 (tuần 11–12) — Báo cáo, demo, bảo vệ
 
 **Phân công:** Khang — S6-02, S6-05, S6-06; Toàn — S6-01, S6-03, S6-04; chung — S6-07, S6-08.
@@ -281,7 +292,9 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 | S6-02 | Bản nháp xong: [DIAGRAMS](DIAGRAMS.md) (chức năng theo tác nhân, triển khai Compose, sequence upload→OCR→Submit, hai sơ đồ trạng thái, ER). Nội dung đối chiếu với code; **chưa render thử bằng Mermaid**; cần Toàn review và cập nhật nếu code đổi |
 | S6-05 | Một phần: clone sạch từ repo, `docker compose config -q` pass và `docker compose build backend frontend` thành công (≈ 10 phút, tải lại toàn bộ dependency). Chưa có thành viên khác tự chạy từ README/SETUP, và chưa chạy `up` từ bản clone vì trùng cổng với stack đang chạy |
 | S6-06 | Một phần: quét `git ls-files` không thấy `.env`, upload, PDF, model weights, `node_modules`, `dist`, `.venv`, dump; không thấy chuỗi bí mật bằng regex (quét giới hạn). Còn các thông tin đăng nhập mặc định dành cho local trong `docker-compose.yml` (đã ghi trong SETUP/ARCHITECTURE). **Chưa tạo tag** vì chưa có phiên bản nộp |
-| S6-01, S6-03, S6-04 | Việc của Toàn, chưa làm |
+| S6-01 | Xong 2026-11-13: [REPORT_DRAFT.md](REPORT_DRAFT.md) — bản nháp 7 chương (giới thiệu, cơ sở lý thuyết, yêu cầu, thiết kế, triển khai, kiểm thử, kết luận) |
+| S6-03 | Xong 2026-11-13: [TRACEABILITY_MATRIX.md](TRACEABILITY_MATRIX.md) — 17/17 FR có test (100%), 5/7 NFR (71%), tổng 242+ test |
+| S6-04 | Xong 2026-11-13: [DEMO_SCRIPT.md](DEMO_SCRIPT.md) — 13 slides outline + 9 bước demo script |
 | S6-07, S6-08 | Cần cả hai thành viên; chưa làm |
 **Gate G6 = điểm dừng đồ án.** Chi tiết ở mục 8.
 
@@ -304,7 +317,7 @@ Từ sau G4 chỉ sửa lỗi có bằng chứng; không thêm chức năng.
 
 ## 7. Ma trận truy vết
 
-Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test backend, chưa có test frontend/worker). "Khoảng trống" là chỗ chưa có test; task đóng khoảng trống nằm ở cột cuối.
+Cập nhật ngày 2026-11-13 từ mã nguồn và test hiện có (179 test backend, 60 test frontend). "Khoảng trống" là chỗ chưa có test; task đóng khoảng trống nằm ở cột cuối.
 
 | ID | Code chính | Test hiện có | Khoảng trống → task |
 |---|---|---|---|
@@ -319,13 +332,13 @@ Cập nhật ngày 2026-11-10 từ mã nguồn và test hiện có (24 test back
 | FR1-04 | `models/formula_entry.py`, `services/formula_regions.py` | `test_pdf_pipeline.py` (bbox nằm trong ảnh, crop đúng kích thước bbox, box ngoài trang bị bỏ), `tests/api/test_formula_regions.py` (crop khớp bbox) | — |
 | FR1-05 | `api/formulas.py` | `tests/api/test_formula_regions.py` (tạo/sửa/xóa, bounds hợp lệ/ngoài trang/âm, chỉ vùng `proposed`, đúng owner, crop được tạo lại/xóa) | UI pointer/keyboard → S4-03 (Toàn) |
 | FR1-06 | `services/formula_ocr.py` | `tests/worker/` (fake model: thành công, lỗi từng công thức, lỗi nạp model, không đụng công thức không `ocr_queued`) | — |
-| FR2-01 | `frontend/src/App.jsx` | Chưa có test frontend | S4-01, S4-02 |
-| FR2-02 | `App.jsx` (`FormulaEditor`) | Chưa có | S4-02, S4-10 |
-| FR2-03 | `App.jsx` (overlay pointer/keyboard) | Chưa có | S4-03, S4-06 |
-| FR3-01 | `POST …/formulas/{id}/submit` | `tests/api/test_formula_submit.py` (ghi `latex_final`, chưa OCR → 409, giới hạn độ dài, đúng owner, ghi log) | UI → S4-04 (Toàn) |
+| FR2-01 | `frontend/src/App.jsx`, `components/FormulaEditor.jsx` | `FormulaEditor.test.jsx` (27 test: LaTeX fraction/sqrt/matrix/Greek/bad syntax, MathLive, submit, OCR raw) | — |
+| FR2-02 | `components/FormulaEditor.jsx`, `hooks/useLatexSync.js` | `FormulaEditor.test.jsx` (đồng bộ LaTeX ↔ MathLive, try/catch parse lỗi, warning UI) | — |
+| FR2-03 | `components/RegionOverlay.jsx` | `RegionOverlay.test.jsx` (20 test: render, positioning, drag, selection, resize, pointer/keyboard, a11y) | — |
+| FR3-01 | `POST …/formulas/{id}/submit` | `tests/api/test_formula_submit.py` (ghi `latex_final`, chưa OCR → 409, giới hạn độ dài, đúng owner, ghi log); `DocumentFlow.test.jsx` (submit flow UI) | — |
 | FR3-02 | Cùng endpoint | `test_formula_submit.py` (`latex_raw` không đổi kể cả resubmit; bỏ dòng bảo vệ thì 3 test fail) | — |
-| FR3-03 | `GET …/formulas` | `test_submit_is_logged_and_persists_across_reload` | UI reload → S4-04 (Toàn) |
-| FR4-01 | `GET /documents`, `GET/DELETE /documents/{id}` | `test_list_*`, `test_get_document_detail_and_log`, `test_delete_removes_rows_and_files`, `test_delete_succeeds_when_files_already_missing` | UI lịch sử → S4-05 |
+| FR3-03 | `GET …/formulas` | `test_submit_is_logged_and_persists_across_reload`; `DocumentFlow.test.jsx` (reload, status polling) | — |
+| FR4-01 | `GET /documents`, `GET/DELETE /documents/{id}` | `test_list_*`, `test_get_document_detail_and_log`, `test_delete_removes_rows_and_files`, `test_delete_succeeds_when_files_already_missing`; `DocumentFlow.test.jsx` (history list, upload) | — |
 | FR4-02 | `GET …/source` | `test_download_source_pdf`, `…_missing_file_is_404` | — |
 | FR4-03 | `GET …/export` | `test_export_contains_only_submitted_latex_final`, `test_export_without_submitted_formula_is_409` | — |
 | FR4-04 | `BUSY_STATUSES` trong `documents.py` | `test_delete_is_blocked_while_processing` | — |

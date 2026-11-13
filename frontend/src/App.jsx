@@ -1,57 +1,20 @@
-import { useEffect, useRef, useState } from 'react'
-import { MathfieldElement } from 'mathlive'
+import { useEffect, useState, useCallback } from 'react'
 import './App.css'
 
-MathfieldElement.fontsDirectory = '/mathlive-fonts/'
-
-const API_ORIGIN = `${window.location.protocol}//${window.location.hostname}:8000`
-const API = `${API_ORIGIN}/api/documents`
-const AUTH_API = `${API_ORIGIN}/api/auth`
-const PROCESSING_STATES = new Set(['processing_pages', 'detecting_formulas', 'ocr_processing'])
-
-const apiFetch = (url, options = {}) => fetch(url, { ...options, credentials: 'include' })
-
-const HISTORY_PAGE_SIZE = 10
-
-const formatBytes = (bytes) => {
-  if (bytes == null) return '—'
-  if (bytes < 1024 * 1024) return `${Math.max(1, Math.round(bytes / 1024))} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-}
-
-const formatDate = (value) => (value ? new Date(value).toLocaleString('vi-VN') : '—')
-
-const fetchHistoryPage = async (offset) => {
-  const response = await apiFetch(`${API}?limit=${HISTORY_PAGE_SIZE}&offset=${offset}`)
-  const data = await response.json()
-  if (!response.ok) throw new Error(data.detail || 'Không tải được lịch sử')
-  return data
-}
-
-const downloadFile = async (url, filename) => {
-  const response = await apiFetch(url)
-  if (!response.ok) {
-    const data = await response.json().catch(() => ({}))
-    throw new Error(data.detail || 'Không tải được file')
-  }
-  const objectUrl = URL.createObjectURL(await response.blob())
-  const link = window.document.createElement('a')
-  link.href = objectUrl
-  link.download = filename
-  link.click()
-  URL.revokeObjectURL(objectUrl)
-}
-
-const STATUS_LABELS = {
-  processing_pages: 'Đang tách trang',
-  detecting_formulas: 'Đang tìm công thức',
-  formula_proposals_ready: 'Chờ xác nhận vùng',
-  ocr_processing: 'Đang nhận dạng LaTeX',
-  ocr_complete: 'OCR hoàn tất',
-  ocr_completed_with_errors: 'OCR có công thức lỗi',
-  processing_failed: 'Xử lý thất bại',
-  uploaded: 'Đã tải lên',
-}
+import {
+  API,
+  AUTH_API,
+  PROCESSING_STATES,
+  STATUS_LABELS,
+  apiFetch,
+  fetchHistoryPage,
+  extractApiError,
+  setSessionExpiredHandler,
+} from './api/client'
+import { FormulaEditor } from './components/FormulaEditor'
+import { PDFUploader } from './components/PDFUploader'
+import { HistoryPanel } from './components/HistoryPanel'
+import { RegionOverlay } from './components/RegionOverlay'
 
 function App() {
   const [currentUser, setCurrentUser] = useState(null)
@@ -74,6 +37,23 @@ function App() {
   const [historyTotal, setHistoryTotal] = useState(0)
   const [historyLoading, setHistoryLoading] = useState(false)
 
+  // Register auto-logout handler for expired sessions (401)
+  const handleSessionExpired = useCallback(() => {
+    setCurrentUser(null)
+    setDocumentInfo(null)
+    setPages([])
+    setFormulas([])
+    setHistory([])
+    setHistoryTotal(0)
+    setSelectedFile(null)
+    setMessage('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.')
+  }, [])
+
+  useEffect(() => {
+    setSessionExpiredHandler(handleSessionExpired)
+    return () => setSessionExpiredHandler(null)
+  }, [handleSessionExpired])
+
   useEffect(() => {
     apiFetch(`${AUTH_API}/me`)
       .then(async (response) => {
@@ -88,10 +68,10 @@ function App() {
       apiFetch(`${API}/${documentId}/pages`),
       apiFetch(`${API}/${documentId}/formulas`),
     ])
+    if (!pagesResponse.ok) throw new Error(await extractApiError(pagesResponse, 'Không tải được danh sách trang'))
+    if (!formulasResponse.ok) throw new Error(await extractApiError(formulasResponse, 'Không tải được công thức'))
     const pagesData = await pagesResponse.json()
     const formulasData = await formulasResponse.json()
-    if (!pagesResponse.ok) throw new Error(pagesData.detail || 'Không tải được danh sách trang')
-    if (!formulasResponse.ok) throw new Error(formulasData.detail || 'Không tải được công thức')
 
     setDocumentInfo((current) => ({ ...current, status: formulasData.status || pagesData.status }))
     setPages(pagesData.pages || [])
@@ -135,8 +115,8 @@ function App() {
     setMessage('')
     try {
       const response = await apiFetch(`${API}/${documentId}`)
+      if (!response.ok) throw new Error(await extractApiError(response, 'Không mở được tài liệu'))
       const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Không mở được tài liệu')
       resetDocumentView()
       setDocumentInfo({ document_id: data.document_id, filename: data.filename, status: data.status })
       const loadedPages = await refreshDocument(documentId)
@@ -153,10 +133,7 @@ function App() {
   const deleteHistoryItem = async (item) => {
     if (!window.confirm(`Xóa "${item.filename}" cùng toàn bộ công thức đã lưu? Không thể hoàn tác.`)) return
     const response = await apiFetch(`${API}/${item.document_id}`, { method: 'DELETE' })
-    if (!response.ok) {
-      const data = await response.json().catch(() => ({}))
-      throw new Error(data.detail || 'Không xóa được tài liệu')
-    }
+    if (!response.ok) throw new Error(await extractApiError(response, 'Không xóa được tài liệu'))
     setMessage('Đã xóa tài liệu khỏi lịch sử.')
     if (documentInfo?.document_id === item.document_id) {
       setDocumentInfo(null)
@@ -203,8 +180,11 @@ function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: authUsername, password: authPassword }),
       })
+      if (!response.ok) {
+        const msg = await extractApiError(response, 'Không thể xác thực tài khoản')
+        throw new Error(msg)
+      }
       const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Không thể xác thực tài khoản')
       setCurrentUser(data)
       setAuthPassword('')
       setMessage(authMode === 'login' ? 'Đăng nhập thành công.' : 'Tạo tài khoản thành công.')
@@ -236,8 +216,11 @@ function App() {
     formData.append('file', selectedFile)
     try {
       const response = await apiFetch(`${API}/upload`, { method: 'POST', body: formData })
+      if (!response.ok) {
+        const msg = await extractApiError(response, 'Upload thất bại')
+        throw new Error(msg)
+      }
       const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Upload thất bại')
       setDocumentInfo({ ...data, filename: selectedFile.name })
       setPages([])
       setFormulas([])
@@ -257,8 +240,8 @@ function App() {
     setBusy(true)
     try {
       const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/recognize`, { method: 'POST' })
+      if (!response.ok) throw new Error(await extractApiError(response, 'Không thể bắt đầu OCR'))
       const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Không thể bắt đầu OCR')
       setDocumentInfo((current) => ({ ...current, status: data.status }))
       setMessage(`Đã đưa ${data.queued_count} vùng vào hàng xử lý OCR.`)
     } catch (error) {
@@ -273,8 +256,8 @@ function App() {
     setBusy(true)
     try {
       const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/retry`, { method: 'POST' })
+      if (!response.ok) throw new Error(await extractApiError(response, 'Không thể chạy lại OCR'))
       const data = await response.json()
-      if (!response.ok) throw new Error(data.detail || 'Không thể chạy lại OCR')
       setDocumentInfo((current) => ({ ...current, status: data.status }))
       setMessage(`Đã đưa ${data.queued_count} công thức lỗi vào hàng OCR lại.`)
     } catch (error) {
@@ -297,8 +280,7 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ x_min: xMin, y_min: yMin, x_max: xMax, y_max: yMax }),
     })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.detail || 'Không cập nhật được vùng')
+    if (!response.ok) throw new Error(await extractApiError(response, 'Không cập nhật được vùng'))
     await refreshDocument(documentInfo.document_id)
   }
 
@@ -308,8 +290,8 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(bounds),
     })
+    if (!response.ok) throw new Error(await extractApiError(response, 'Không cập nhật được vùng'))
     const data = await response.json()
-    if (!response.ok) throw new Error(data.detail || 'Không cập nhật được vùng')
     setFormulas((current) => current.map((formula) => formula.formula_id === formulaId ? { ...formula, bounds: data.bounds, image_url: data.image_url } : formula))
     setRegionDrafts((current) => {
       const next = { ...current }
@@ -419,10 +401,7 @@ function App() {
 
   const deleteRegion = async (formulaId) => {
     const response = await apiFetch(`${API}/${documentInfo.document_id}/formulas/${formulaId}`, { method: 'DELETE' })
-    if (!response.ok) {
-      const data = await response.json()
-      throw new Error(data.detail || 'Không xóa được vùng')
-    }
+    if (!response.ok) throw new Error(await extractApiError(response, 'Không xóa được vùng'))
     setFormulas((current) => current.filter((formula) => formula.formula_id !== formulaId))
     setSelectedFormulaId(null)
   }
@@ -440,8 +419,7 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ page_number: page.page_number, x_min: xMin, y_min: yMin, x_max: xMax, y_max: yMax }),
     })
-    const data = await response.json()
-    if (!response.ok) throw new Error(data.detail || 'Không thêm được vùng')
+    if (!response.ok) throw new Error(await extractApiError(response, 'Không thêm được vùng'))
     setManualRegions((current) => ({ ...current, [`page-${page.page_number}`]: '' }))
     await refreshDocument(documentInfo.document_id)
   }
@@ -452,8 +430,8 @@ function App() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ latex_final: edits[formula.formula_id] ?? '' }),
     })
+    if (!response.ok) throw new Error(await extractApiError(response, 'Không lưu được LaTeX'))
     const data = await response.json()
-    if (!response.ok) throw new Error(data.detail || 'Không lưu được LaTeX')
     setFormulas((current) => current.map((item) => item.formula_id === formula.formula_id ? { ...item, status: data.status, latex_raw: data.latex_raw, latex_final: data.latex_final } : item))
     setMessage('Đã lưu LaTeX cuối cùng cho công thức.')
     await loadHistory()
@@ -520,53 +498,22 @@ function App() {
           <h1>From PDF to <em>Latex.</em></h1>
           <p className="intro-copy">Chuyển đổi công thức toán học từ PDF sang LaTeX.</p>
         </div>
-        <form className="upload-form" onSubmit={handleUpload}>
-          <label className="file-picker">
-            <input type="file" accept="application/pdf,.pdf" onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)} />
-            <span className="file-icon" aria-hidden="true">↥</span>
-            <span className="file-name">{selectedFile?.name || 'Chọn PDF để bắt đầu'}</span>
-            <span className="file-browse">Browse</span>
-          </label>
-          <button className="primary-button" type="submit" disabled={!selectedFile || busy}>
-            {busy ? 'Đang xử lý' : 'Tải PDF'} <span aria-hidden="true">→</span>
-          </button>
-        </form>
+        <PDFUploader selectedFile={selectedFile} setSelectedFile={setSelectedFile} busy={busy} onUpload={handleUpload} />
       </section>
 
       {message && <div className="notice" role="status">{message}</div>}
 
-      <section className="history-section" aria-labelledby="history-title">
-        <div className="section-heading">
-          <div><p className="eyebrow">Upload history</p><h3 id="history-title">Lịch sử tải lên</h3></div>
-          <span className="count-label">{historyTotal} tài liệu</span>
-        </div>
-        {history.length === 0 && !historyLoading && <p className="empty-state">Bạn chưa tải tài liệu nào.</p>}
-        <ul className="history-list">
-          {history.map((item) => (
-            <li className={`history-item ${documentInfo?.document_id === item.document_id ? 'is-current' : ''}`} key={item.document_id}>
-              <button type="button" className="history-open" onClick={() => openDocument(item.document_id)} disabled={busy}>
-                <span className="history-name">{item.filename}</span>
-                <span className="history-meta">
-                  {formatDate(item.created_at)} · {formatBytes(item.file_size_bytes)} · {item.page_count ?? '—'} trang · {item.submitted_count}/{item.formula_count} công thức đã lưu
-                </span>
-              </button>
-              <div className={`status-pill status-${item.status}`}>
-                <span className="status-dot" />{STATUS_LABELS[item.status] || item.status}
-              </div>
-              <div className="history-actions">
-                <button type="button" className="text-button" onClick={() => perform(() => downloadFile(`${API}/${item.document_id}/source`, item.filename))}>Tải PDF</button>
-                <button type="button" className="text-button" disabled={item.submitted_count === 0} onClick={() => perform(() => downloadFile(`${API}/${item.document_id}/export`, `${item.filename.replace(/\.pdf$/i, '')}.tex`))}>Xuất .tex</button>
-                <button type="button" className="text-button history-delete" disabled={PROCESSING_STATES.has(item.status)} onClick={() => perform(() => deleteHistoryItem(item))}>Xóa</button>
-              </div>
-            </li>
-          ))}
-        </ul>
-        {history.length < historyTotal && (
-          <button type="button" className="text-button" onClick={() => loadHistory(true)} disabled={historyLoading}>
-            {historyLoading ? 'Đang tải…' : 'Xem thêm'}
-          </button>
-        )}
-      </section>
+      <HistoryPanel
+        history={history}
+        historyTotal={historyTotal}
+        historyLoading={historyLoading}
+        documentInfo={documentInfo}
+        busy={busy}
+        onOpen={openDocument}
+        onDelete={deleteHistoryItem}
+        onLoadMore={() => loadHistory(true)}
+        onPerform={perform}
+      />
 
       {documentInfo && (
         <section className="document-workspace">
@@ -591,7 +538,7 @@ function App() {
                 {documentInfo.status === 'formula_proposals_ready' && (
                   <div className="confirm-panel">
                     <p>{proposalCount} vùng đề xuất cần nhận dạng.</p>
-                    <button className="dark-button" onClick={runOcr} disabled={busy || !formulas.length}>Xác nhận vùng & chạy OCR <span>→</span></button>
+                    <button className="dark-button" onClick={runOcr} disabled={busy || !formulas.length}>Xác nhận vùng &amp; chạy OCR <span>→</span></button>
                   </div>
                 )}
                 {documentInfo.status === 'ocr_completed_with_errors' && failedCount > 0 && (
@@ -613,46 +560,19 @@ function App() {
                     </div>
                     <div className="page-review-body">
                       <article className="page-sheet">
-                        <div
-                          className="page-image-wrap"
+                        <RegionOverlay
+                          page={page}
+                          pageFormulas={pageFormulas}
+                          documentInfo={documentInfo}
+                          regionDrafts={regionDrafts}
+                          selectedFormulaId={selectedFormulaId}
                           onPointerMove={(event) => moveRegionPointer(event, page)}
                           onPointerUp={finishRegionPointer}
                           onPointerCancel={finishRegionPointer}
-                        >
-                          <img src={`${API_ORIGIN}${page.image_url}`} alt={`Trang ${page.page_number}`} />
-                          {pageFormulas.map((formula) => {
-                            const bounds = regionDrafts[formula.formula_id] || formula.bounds
-                            const canDrag = formula.status === 'proposed' && documentInfo.status === 'formula_proposals_ready'
-                            return (
-                              <button
-                                className={`region-box ${selectedFormulaId === formula.formula_id ? 'is-selected' : ''} ${canDrag ? 'is-draggable' : ''}`}
-                                key={formula.formula_id}
-                                style={{ left: `${bounds.x_min / page.width * 100}%`, top: `${bounds.y_min / page.height * 100}%`, width: `${(bounds.x_max - bounds.x_min) / page.width * 100}%`, height: `${(bounds.y_max - bounds.y_min) / page.height * 100}%` }}
-                                onPointerDown={(event) => startRegionDrag(event, formula, page)}
-                                onKeyDown={(event) => nudgeRegionWithKeyboard(event, formula, page)}
-                                onClick={() => setSelectedFormulaId(formula.formula_id)}
-                                aria-label={`Chọn vùng công thức trang ${page.page_number}`}
-                                aria-describedby={canDrag ? `region-help-${formula.formula_id}` : undefined}
-                                aria-keyshortcuts="ArrowLeft ArrowRight ArrowUp ArrowDown Alt+ArrowLeft Alt+ArrowRight Alt+ArrowUp Alt+ArrowDown"
-                                title={canDrag ? 'Kéo để di chuyển vùng' : `Độ tin cậy ${Math.round((formula.confidence || 0) * 100)}%`}
-                              >
-                                {canDrag && ['nw', 'ne', 'sw', 'se'].map((corner) => (
-                                  <span
-                                    aria-label={`Đổi kích thước ${corner}`}
-                                    className={`region-handle handle-${corner}`}
-                                    key={corner}
-                                    onPointerDown={(event) => startRegionDrag(event, formula, page, 'resize', corner)}
-                                  />
-                                ))}
-                              </button>
-                            )
-                          })}
-                          {pageFormulas.filter((formula) => formula.status === 'proposed').map((formula) => (
-                            <span className="visually-hidden" id={`region-help-${formula.formula_id}`} key={`help-${formula.formula_id}`}>
-                              Dùng phím mũi tên để di chuyển vùng; Alt cộng phím mũi tên để đổi kích thước; giữ Shift để thay đổi 10 pixel.
-                            </span>
-                          ))}
-                        </div>
+                          onPointerDown={startRegionDrag}
+                          onKeyDown={nudgeRegionWithKeyboard}
+                          onSelect={setSelectedFormulaId}
+                        />
                         {documentInfo.status === 'formula_proposals_ready' && (
                           <div className="region-tools">
                             <input aria-label={`Tọa độ vùng mới trang ${page.page_number}`} placeholder="x_min,y_min,x_max,y_max" value={manualRegions[`page-${page.page_number}`] || ''} onChange={(event) => setManualRegions((current) => ({ ...current, [`page-${page.page_number}`]: event.target.value }))} />
@@ -693,48 +613,6 @@ function App() {
         </section>
       )}
     </main>
-  )
-}
-
-function FormulaEditor({ formula, index, selected, value, editable, onSelect, onChange, onSave, onDelete, onUpdateRegion, coordinates, setCoordinates, canEditRegion }) {
-  const mathfieldRef = useRef(null)
-
-  useEffect(() => {
-    const field = mathfieldRef.current
-    if (field && field.value !== value) field.value = value
-  }, [value])
-
-  return (
-    <article className={`formula-item ${selected ? 'formula-selected' : ''}`} onClick={onSelect}>
-      <div className="formula-item-top">
-        <span className="formula-index">F{String(index + 1).padStart(2, '0')}</span>
-        <span className="formula-page">Trang {formula.page_number} · {formula.status}</span>
-        {formula.confidence != null && <span className="confidence">{Math.round(formula.confidence * 100)}%</span>}
-      </div>
-      <img className="formula-crop" src={`${API_ORIGIN}${formula.image_url}`} alt={`Công thức trang ${formula.page_number}`} />
-      {canEditRegion && (
-        <div className="region-edit-row" onClick={(event) => event.stopPropagation()}>
-          <input aria-label="Tọa độ vùng công thức" value={coordinates} onChange={(event) => setCoordinates(event.target.value)} />
-          <button className="icon-button" title="Cập nhật vùng" onClick={onUpdateRegion}>✓</button>
-          <button className="icon-button danger-button" title="Xóa vùng" onClick={onDelete}>×</button>
-        </div>
-      )}
-      {editable ? (
-        <div className="editor-fields" onClick={(event) => event.stopPropagation()}>
-          <label className="field-label" htmlFor={`latex-${formula.formula_id}`}>LaTeX</label>
-          <textarea id={`latex-${formula.formula_id}`} value={value} onChange={(event) => onChange(event.target.value)} spellCheck="false" />
-          <label className="field-label">MathLive</label>
-          <math-field ref={mathfieldRef} className="mathlive-field" onInput={(event) => onChange(event.currentTarget.value)} virtual-keyboard-mode="manual" />
-          <div className="save-row">
-            <span className={`saved-state ${formula.status === 'submitted' ? 'is-saved' : ''}`}>{formula.status === 'submitted' ? 'Đã lưu' : 'Chưa gửi'}</span>
-            <button className="save-button" onClick={onSave}>Submit <span>↗</span></button>
-          </div>
-        </div>
-      ) : (
-        <div className="waiting-label">{formula.status === 'proposed' ? 'Chờ xác nhận vùng OCR' : formula.status === 'ocr_queued' ? 'Đang chờ OCR' : formula.status === 'ocr_failed' ? 'OCR lỗi · cần thử lại' : 'Đang chuẩn bị'}</div>
-      )}
-      {formula.latex_raw && <details className="raw-result"><summary>OCR gốc</summary><code>{formula.latex_raw}</code></details>}
-    </article>
   )
 }
 
