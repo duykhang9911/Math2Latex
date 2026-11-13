@@ -110,50 +110,7 @@
   line-height: 1.55;
 }
 
-.upload-form {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 9px;
-}
-
-.file-picker {
-  min-width: 0;
-  min-height: 48px;
-  padding: 0 12px;
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  border: 1px solid #c8d0c3;
-  background: rgba(255, 255, 255, 0.72);
-  cursor: pointer;
-}
-
-.file-picker input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-}
-
-.file-icon {
-  font-size: 19px;
-  color: var(--green);
-}
-
-.file-name {
-  flex: 1;
-  overflow: hidden;
-  color: var(--muted);
-  font-size: 12px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-browse {
-  color: var(--green);
-  font-size: 11px;
-  font-weight: 700;
-}
+/* Upload form — migrated to Tailwind inline in PDFUploader.jsx */
 
 .primary-button,
 .dark-button,
@@ -539,6 +496,16 @@
   line-height: 1.5;
 }
 
+.math-error-warning {
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border-left: 3px solid #bf5a48;
+  background: rgba(191, 90, 72, 0.08);
+  color: #a8493b;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 .mathlive-field {
   display: block;
   width: 100%;
@@ -766,61 +733,11 @@
   border-color: var(--green);
   color: var(--green);
 }
+/* History section — partially migrated to Tailwind inline in HistoryPanel.jsx */
 .history-section {
   padding-top: 32px;
 }
-
-.history-list {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 10px;
-  padding: 0;
-  list-style: none;
-}
-
-.history-item {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
-  align-items: center;
-  gap: 14px;
-  border: 1px solid var(--line);
-  padding: 10px 14px;
-  background: #fff;
-}
-
-.history-item.is-current {
-  border-color: var(--green);
-}
-
-.history-open {
-  display: grid;
-  gap: 3px;
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-}
-
-.history-open:disabled {
-  cursor: wait;
-}
-
-.history-name {
-  font-weight: 700;
-  overflow-wrap: anywhere;
-}
-
-.history-meta {
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.history-actions {
-  display: flex;
-  gap: 10px;
-}
+/* history-open, history-name, history-meta — migrated to Tailwind inline in HistoryPanel.jsx */
 
 .text-button:disabled {
   color: var(--muted);

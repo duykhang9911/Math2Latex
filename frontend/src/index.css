@@ -1,4 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #192822;
+  --color-muted: #66736d;
+  --color-line: #d9dfd6;
+  --color-paper: #f3f2e9;
+  --color-green: #286c50;
+  --color-lime: #d4e77c;
+  --color-danger: #bf5a48;
+  --font-sans: 'DM Sans', 'Segoe UI', sans-serif;
+  --font-mono: 'DM Mono', Consolas, monospace;
+}
 
 :root {
   font-family: 'DM Sans', 'Segoe UI', sans-serif;
